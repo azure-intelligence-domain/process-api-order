@@ -1,0 +1,6 @@
+# Runtime dependencies of the Function (packaged on the runner: Linux x64, Python 3.12).
+azure-functions==1.24.0
+azure-identity==1.25.1
+jsonschema==4.25.1
+pyyaml==6.0.3
+integration-envelope @ git+https://github.com/azure-intelligence-domain/contracts@v1.2.0

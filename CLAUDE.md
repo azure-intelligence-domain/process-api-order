@@ -16,3 +16,7 @@ repository (ADR 0013 for this domain).
   queries with orderid / customerid.
 - The BPMN files in `docs/bpmn/` are the source of the flows (edit in Camunda Modeler or
   demo.bpmn.io); keep the Mermaid versions in README.md in step.
+- The rules live in `orders.py` (pure functions, no I/O); `function_app.py` only reads, decides,
+  saves and publishes. A new command = a decision in `orders.py`, an intent and a route in
+  `function_app.py`, tests in `tests/`.
+- Tests: `uv run --no-project --python 3.12 --with-requirements requirements.txt --with pytest pytest -q`

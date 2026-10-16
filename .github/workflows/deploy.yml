@@ -1,0 +1,106 @@
+name: deploy
+
+# Contract check, tests and BPMN (no contract, no deploy), then on main: infrastructure, code, and
+# proof that only the gateways get in. OIDC as id-intplat-process-api-order.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-intplat-process-api-order
+
+jobs:
+  contracts:
+    uses: azure-intelligence-domain/contracts/.github/workflows/contract-check.yml@v1.1.0
+    with:
+      contracts: openapi.yaml asyncapi.yaml
+      contracts-ref: v1.2.0
+
+  test:
+    name: Tests, Bicep and BPMN
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: BPMN files are well-formed
+        run: |
+          for f in docs/bpmn/*.bpmn; do
+            python3 -c 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])' "$f" && echo "✅ $f"
+          done
+      - uses: astral-sh/setup-uv@v6
+      - name: Tests
+        run: uv run --no-project --python 3.12 --with-requirements requirements.txt --with pytest pytest -q
+      - name: Bicep (any warning fails the build)
+        run: |
+          az bicep install --only-show-errors
+          diagnostics=$("$HOME/.azure/bin/bicep" build infra/main.bicep --stdout 2>&1 >/dev/null || true)
+          if echo "$diagnostics" | grep -qE ': (Warning|Error) '; then echo "$diagnostics"; exit 1; fi
+          echo "✅ infra/main.bicep"
+
+  deploy:
+    name: Deploy and smoke test
+    needs: [contracts, test]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Acquire Event Grid token (for the deployment event)
+        run: |
+          token=$(az account get-access-token --resource https://eventgrid.azure.net --query accessToken -o tsv)
+          echo "::add-mask::$token"
+          echo "EVENTGRID_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: What-if
+        run: az deployment group what-if -g "$RESOURCE_GROUP" -n process-api-order -f infra/main.bicep
+      - name: Deploy infrastructure
+        run: |
+          outputs=$(az deployment group create -g "$RESOURCE_GROUP" -n process-api-order -f infra/main.bicep \
+            --query properties.outputs -o json)
+          echo "FUNCTION=$(echo "$outputs" | jq -r .functionName.value)" >> "$GITHUB_ENV"
+          echo "HOST=$(echo "$outputs" | jq -r .hostName.value)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Package the dependencies (built here, Linux x64, Python 3.12)
+        run: pip install --quiet --target .python_packages/lib/site-packages -r requirements.txt
+      - name: Deploy code
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.FUNCTION }}
+          package: .
+          sku: flexconsumption
+      - name: Smoke test — nobody goes around the gateways
+        run: |
+          echo "backend: https://$HOST"
+          for attempt in $(seq 1 18); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "https://$HOST/orders/4711" -H "Correlation-Id: smoke-$GITHUB_RUN_ID")
+            [ "$status" = 401 ] && break
+            echo "attempt $attempt: HTTP $status"; sleep 10
+          done
+          test "$status" = 401
+          echo "✅ backend without a gateway token: 401"
+      - name: Deployment event
+        if: always()
+        uses: azure-intelligence-domain/integration-platform/.github/actions/deployment-event@v1.2.0
+        with:
+          token: ${{ env.EVENTGRID_TOKEN }}
+          component: process-api-order
+          version: ${{ github.sha }}
+          status: ${{ job.status }}

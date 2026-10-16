@@ -4,12 +4,14 @@ The **Order Process API** of the order domain: the lifecycle of an order across 
 the **order domain team**. Decision:
 [ADR 0013](https://github.com/azure-intelligence-domain/ai-intelligence-domain/blob/main/docs/adr/0013-order-domain.md).
 
-> Version 0.x: designed (contracts, flows), not implemented yet.
-
 | File | What |
 |---|---|
 | [`openapi.yaml`](openapi.yaml) | Commands and queries: `[Order] Order Process API` |
 | [`asyncapi.yaml`](asyncapi.yaml) | The 15 business events of the order domain, on `evgt-intplat-order` |
+| [`orders.py`](orders.py) | **The brain**: which command is allowed in which status, and which fact it becomes. No I/O |
+| [`function_app.py`](function_app.py) | The routes: read the order, decide, save it in Salesforce, publish the fact |
+| [`platform_clients.py`](platform_clients.py) | Salesforce System API (through the gateway) and the order topic, with the runtime identity |
+| [`infra/`](infra/) | Function (Flex Consumption), storage, Easy Auth (both gateways only) |
 | [`docs/bpmn/`](docs/bpmn/) | The flows as BPMN 2.0: order to delivery, commands, queries |
 | [`docs/problems/`](docs/problems/) | Problem types: invalid request, order not found, order state conflict |
 
@@ -118,6 +120,47 @@ sequenceDiagram
     L3->>L3: retries exhausted → dead-letter queue
     Note over P,TPL: The order stays readyForShipment: no OrderShipped ever comes. The tap saw every hop.
 ```
+
+## Implementation (1.0.0)
+
+A Python Function on Flex Consumption, running as `id-intplat-process-api-order-runtime`. No keys
+anywhere: Entra tokens for the gateway (System API) and Event Grid (topic), granted by the
+platform's routing (`internal-callers.yaml`, `producers.yaml`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant G as Gateway (people or agents)
+    participant F as Order Process API
+    participant B as orders.py (the brain)
+    participant S as Salesforce System API (via gateway)
+    participant E as evgt-intplat-order
+    G->>F: DELETE /orders/4711?reason=... (gateway identity, Easy Auth)
+    F->>S: GET /salesforce/orders/4711 (runtime identity token)
+    S-->>F: order + ETag
+    F->>B: cancel_order(order, reason)
+    alt status does not allow it
+        B-->>F: StateConflict
+        F-->>G: 409 Order State Conflict
+    else allowed
+        B-->>F: Decision(status cancelled, OrderCancelled)
+        F->>S: PUT /salesforce/orders/4711 (If-Match: ETag)
+        Note over F,S: 412: someone changed it meanwhile → read and decide again
+        F->>E: OrderCancelled (envelope: orderid, customerid, correlationid)
+        F-->>G: 200 order
+    end
+```
+
+| Concern | How |
+|---|---|
+| Invalid request | Validated against `openapi.yaml` itself → `400` |
+| Idempotency | `Idempotency-Key` stored on the order; a retry returns the first order and publishes nothing |
+| Concurrency | ETag / `If-Match` on Salesforce; on `412` the command is decided again on the fresh order (3 times) |
+| Envelope | `integration-envelope` from `contracts` v1.2.0 builds and validates every event |
+| Trace | `Correlation-Id` and `traceparent` passed on to the System API and into every event |
+
+Facts that follow a command are published since 1.0.0. Facts that follow other domains' events
+(confirmed, invoiced, paid, …) need those domains' events and the order domain's queue: step 6.
 
 ## Language: business facts, not CRUD
 

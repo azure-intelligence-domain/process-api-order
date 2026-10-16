@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
   title: '[Order] Order Process API'
-  version: 0.1.0
+  version: 1.0.0
   description: 'The order lifecycle of the order domain: place, retrieve, amend, reschedule, hold, release and cancel
     orders. Every command that changes an order publishes a business event (OrderPlaced, OrderAmended, OrderCancelled,
     ...) to evgt-intplat-order; see asyncapi.yaml. Cancelling is a soft delete: the order keeps existing with status
     cancelled. Retrievals are tapped by the gateway as query events with the business keys declared in x-business-keys.
-    Version 0.x: designed, not implemented yet.'
+    The order is kept in Salesforce, the system of record, through the Salesforce System API.'
   contact:
     name: Order Domain Team
     url: https://github.com/azure-intelligence-domain/process-api-order

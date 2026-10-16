@@ -2,12 +2,14 @@ asyncapi: 2.6.0
 id: urn:azure-intelligence-domain:order:process-api-order
 info:
   title: '[Order] Order Events'
-  version: 0.1.0
+  version: 1.0.0
   description: 'The business events of the order domain, published by the Order Process API to evgt-intplat-order.
     Names are business facts in the past tense (Event Storming), never CRUD: an order is placed, confirmed, amended,
     put on hold, cancelled, paid or shipped; it is never updated or deleted. Every event carries orderid and customerid
-    as business keys and the order''s journey as correlationid (ord-<orderId>). Version 0.x: designed, not implemented
-    yet.'
+    as business keys and the order''s journey as correlationid (ord-<orderId>). Facts that follow a command (placed,
+    amended, delivery address changed, delivery rescheduled, put on hold, released, cancelled) are published since
+    1.0.0; facts that follow other domains'' events (confirmed, rejected, invoiced, paid, ready for shipment, shipped,
+    delivered, completed) are published once those domains publish theirs.'
   contact:
     name: Order Domain Team
     url: https://github.com/azure-intelligence-domain/process-api-order
@@ -493,7 +495,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderPlaced-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.placed
           time: '2026-10-03T09:12:01Z'
           datacontenttype: application/json
@@ -554,7 +556,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderConfirmed-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.confirmed
           time: '2026-10-03T09:15:01Z'
           datacontenttype: application/json
@@ -598,7 +600,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderRejected-4712-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.rejected
           time: '2026-10-03T09:20:01Z'
           datacontenttype: application/json
@@ -642,7 +644,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderAmended-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.amended
           time: '2026-10-03T11:00:01Z'
           datacontenttype: application/json
@@ -693,7 +695,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderDeliveryAddressChanged-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.deliveryAddressChanged
           time: '2026-10-04T08:00:01Z'
           datacontenttype: application/json
@@ -736,7 +738,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderDeliveryRescheduled-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.deliveryRescheduled
           time: '2026-10-04T08:05:01Z'
           datacontenttype: application/json
@@ -781,7 +783,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderPutOnHold-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.putOnHold
           time: '2026-10-04T09:00:01Z'
           datacontenttype: application/json
@@ -824,7 +826,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderReleased-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.released
           time: '2026-10-04T15:30:01Z'
           datacontenttype: application/json
@@ -867,7 +869,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderCancelled-4713-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.cancelled
           time: '2026-10-04T10:00:01Z'
           datacontenttype: application/json
@@ -911,7 +913,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderInvoiced-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.invoiced
           time: '2026-10-03T16:00:01Z'
           datacontenttype: application/json
@@ -955,7 +957,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderPaid-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.paid
           time: '2026-10-05T10:40:01Z'
           datacontenttype: application/json
@@ -1001,7 +1003,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderReadyForShipment-4711-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.readyForShipment
           time: '2026-10-07T14:02:01Z'
           datacontenttype: application/json
@@ -1045,7 +1047,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderShipped-4710-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.shipped
           time: '2026-10-06T07:30:01Z'
           datacontenttype: application/json
@@ -1089,7 +1091,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderDelivered-4710-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.delivered
           time: '2026-10-08T11:20:01Z'
           datacontenttype: application/json
@@ -1132,7 +1134,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderCompleted-4710-0001
-          source: /process-api-order/0.1.0
+          source: /process-api-order/1.0.0
           type: com.acme.order.completed
           time: '2026-10-08T11:20:03Z'
           datacontenttype: application/json
