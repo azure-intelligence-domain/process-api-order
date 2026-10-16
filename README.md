@@ -161,8 +161,49 @@ sequenceDiagram
 | Envelope | `integration-envelope` from `contracts` v1.2.0 builds and validates every event |
 | Trace | `Correlation-Id` and `traceparent` passed on to the System API and into every event |
 
-Facts that follow a command are published since 1.0.0. Facts that follow other domains' events
-(confirmed, invoiced, paid, …) need those domains' events and the order domain's queue: step 6.
+Facts that follow a command are published since 1.0.0; facts that follow other domains' facts
+since 1.1.0 (policies, below).
+
+## Policies
+
+Other domains' facts reach the Order Process API through the platform's **event intake**
+([ADR 0016](https://github.com/azure-intelligence-domain/ai-intelligence-domain/blob/main/docs/adr/0016-event-delivery-through-the-gateway.md)):
+Event Grid → `apim-intplat-demo/intake/process-api-order` → `POST /intake` on this Function. Each
+policy is a pure function in [`orders.py`](orders.py), like the commands.
+
+| When (other domain) | Then (order domain) | Order |
+|---|---|---|
+| SalesOrderAccepted (finance) | **OrderConfirmed**, carrying lines and address for the warehouse | placed → confirmed |
+| SalesOrderRefused (finance) | **OrderRejected** | placed → rejected |
+| InvoiceIssued (finance) | **OrderInvoiced** | payment: unpaid → invoiced |
+| PaymentReceived, invoice paid in full (finance) | **OrderPaid** | payment: → paid |
+| StockReserved (supply) | **OrderReadyForShipment**, carrying lines and address for the 3PL | confirmed → readyForShipment |
+| ShipmentDispatched (logistics) | **OrderShipped** | readyForShipment → shipped |
+| ShipmentDelivered (logistics) | **OrderDelivered** | shipped → delivered |
+| the second of OrderDelivered and OrderPaid | **OrderCompleted** | delivered → completed |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant EG as Event Grid
+    participant G as apim-intplat-demo /intake
+    participant F as Order Process API
+    participant B as orders.py (policy)
+    participant S as Salesforce System API
+    EG->>G: StockReserved (Entra token of the topic)
+    G->>F: POST /intake (gateway identity)
+    F->>S: GET order 4711 + ETag
+    F->>B: stock_reserved(order, data)
+    B-->>F: Decision(readyForShipment, OrderReadyForShipment)
+    F->>S: PUT order (If-Match)
+    F->>F: publish OrderReadyForShipment
+    F-->>G: 200 applied
+    Note over EG,F: a redelivered fact: 200 ignored (at-least-once). An error: Event Grid retries, then dead-letters.
+```
+
+A fact that does not fit the order's status (stock reserved for a cancelled order) is logged and
+answered `200 ignored`: retrying would not make it fit. Only real failures (Salesforce down) make
+Event Grid retry and, in the end, dead-letter into the tap.
 
 ## Language: business facts, not CRUD
 

@@ -111,7 +111,93 @@ def apply(order: dict, decision: Decision) -> dict:
 def event_data(decision: Decision, saved: dict) -> dict:
     """The event's data: the decision's facts, plus what Salesforce computed (the total of new lines)."""
     data = {"orderId": saved["orderId"], **decision.data}
+    if decision.event in ("OrderConfirmed", "OrderReadyForShipment"):
+        data.update(_carried(saved))
     if decision.event == "OrderAmended":
         data = {"orderId": saved["orderId"], "orderLines": saved["orderLines"],
                 "totalAmount": saved["totalAmount"], **decision.data}
     return data
+
+
+# --- Policies: facts of other domains become facts of the order --------------------------------
+# policy(order, data) -> Decision, or None when the order already reflects the fact (Event Grid
+# delivers at least once), or StateConflict when the fact does not fit the order's status.
+
+
+def _carried(order: dict) -> dict:
+    """What downstream domains need from the order, carried in the event (event-carried state)."""
+    keys = ("customerId", "orderLines", "totalAmount", "deliveryAddress", "requestedDeliveryDate")
+    return {key: order[key] for key in keys if key in order}
+
+
+def _require(order: dict, fact: str, *statuses: str) -> None:
+    if order["status"] not in statuses:
+        raise StateConflict(f"Order {order['orderId']} is {order['status']}; {fact} applies while {', '.join(statuses)}.")
+
+
+def sales_order_accepted(order: dict, data: dict) -> Decision | None:
+    if order["status"] in ("confirmed", "onHold", "readyForShipment", "shipped", "delivered", "completed"):
+        return None
+    _require(order, "SalesOrderAccepted", "placed")
+    return Decision({"status": "confirmed"}, "OrderConfirmed",
+                    {"erpOrderNumber": data["erpOrderNumber"], "confirmedAt": now(), **_carried(order)})
+
+
+def sales_order_refused(order: dict, data: dict) -> Decision | None:
+    if order["status"] == "rejected":
+        return None
+    _require(order, "SalesOrderRefused", "placed")
+    return Decision({"status": "rejected"}, "OrderRejected", {"reason": data["reason"], "rejectedAt": now()})
+
+
+def invoice_issued(order: dict, data: dict) -> Decision | None:
+    if order["paymentStatus"] != "unpaid":
+        return None
+    return Decision({"paymentStatus": "invoiced"}, "OrderInvoiced", {"invoiceNumber": data["invoiceNumber"], "invoicedAt": now()})
+
+
+def payment_received(order: dict, data: dict) -> Decision | None:
+    if not data["invoicePaidInFull"] or order["paymentStatus"] == "paid":
+        return None  # a part payment is finance's business; the order is paid when the invoice is
+    return Decision({"paymentStatus": "paid"}, "OrderPaid", {"paidAmount": order["totalAmount"], "paidAt": data["receivedAt"]})
+
+
+def stock_reserved(order: dict, data: dict) -> Decision | None:
+    if order["status"] in ("readyForShipment", "shipped", "delivered", "completed"):
+        return None
+    _require(order, "StockReserved", "confirmed")
+    return Decision({"status": "readyForShipment"}, "OrderReadyForShipment",
+                    {"warehouseId": data["warehouseId"], "reservationId": data["reservationId"], "readyAt": now(), **_carried(order)})
+
+
+def shipment_dispatched(order: dict, data: dict) -> Decision | None:
+    if order["status"] in ("shipped", "delivered", "completed"):
+        return None
+    _require(order, "ShipmentDispatched", "readyForShipment")
+    return Decision({"status": "shipped"}, "OrderShipped", {"shipmentId": data["shipmentId"], "partnerId": data["partnerId"],
+                                                          "trackingNumber": data["trackingNumber"], "shippedAt": data["dispatchedAt"]})
+
+
+def shipment_delivered(order: dict, data: dict) -> Decision | None:
+    if order["status"] in ("delivered", "completed"):
+        return None
+    _require(order, "ShipmentDelivered", "shipped")
+    return Decision({"status": "delivered"}, "OrderDelivered", {"deliveredAt": data["deliveredAt"]})
+
+
+def completion(order: dict) -> Decision | None:
+    """OrderCompleted: the second of OrderDelivered and OrderPaid, in any order."""
+    if order["status"] == "delivered" and order["paymentStatus"] == "paid":
+        return Decision({"status": "completed"}, "OrderCompleted", {"completedAt": now()})
+    return None
+
+
+POLICIES = {
+    "com.acme.finance.salesOrderAccepted": sales_order_accepted,
+    "com.acme.finance.salesOrderRefused": sales_order_refused,
+    "com.acme.finance.invoiceIssued": invoice_issued,
+    "com.acme.finance.paymentReceived": payment_received,
+    "com.acme.supply.stockReserved": stock_reserved,
+    "com.acme.logistics.shipmentDispatched": shipment_dispatched,
+    "com.acme.logistics.shipmentDelivered": shipment_delivered,
+}

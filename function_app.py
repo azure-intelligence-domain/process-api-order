@@ -1,5 +1,6 @@
 """[Order] Order Process API (openapi.yaml): the brain of the order domain. Commands and queries
-come in through the gateways; the order lives in Salesforce (through its System API); every change
+come in through the gateways; facts of other domains come in through the platform's event intake
+(POST /intake, ADR 0016); the order lives in Salesforce (through its System API); every change
 becomes a business fact on evgt-intplat-order (asyncapi.yaml). The rules are in orders.py.
 """
 
@@ -8,6 +9,7 @@ import logging
 from functools import wraps
 
 import azure.functions as func
+from integration_envelope import EnvelopeError, read
 
 import contract
 import orders
@@ -174,6 +176,50 @@ def command(req: func.HttpRequest, sf: SalesforceApi, topic: OrderTopic, intent)
     raise RuntimeError(f"Order {order_id} kept changing; gave up after {RETRIES} attempts.")
 
 
+# --- Policies: facts of other domains, delivered by the platform's event intake -----------------
+
+
+def receive_event(req: func.HttpRequest, sf: SalesforceApi, topic: OrderTopic) -> func.HttpResponse:
+    """One CloudEvent from another domain → at most two order facts (e.g. OrderDelivered, OrderCompleted).
+    200 when handled or deliberately ignored; an error makes Event Grid retry, then dead-letter."""
+    try:
+        event = read(req.get_json())
+    except (ValueError, EnvelopeError) as error:
+        return invalid(f"Not a platform event: {error}", req)
+    policy, order_id = orders.POLICIES.get(event["type"]), event.get("orderid")
+    if policy is None or order_id is None:
+        return ignored(event, "no policy for this event")
+    correlation_id, traceparent = event["correlationid"], event.get("traceparent")
+    for _ in range(RETRIES):
+        found = sf.get(order_id)
+        if found is None:
+            return ignored(event, f"no order {order_id}")
+        order, etag = found
+        try:
+            decision = policy(order, event["data"])
+        except orders.StateConflict as conflict:
+            return ignored(event, str(conflict))
+        if decision is None:
+            return ignored(event, "the order already reflects it")
+        changed = orders.apply(order, decision)
+        done = orders.completion(changed)
+        try:
+            saved = sf.replace(order_id, orders.apply(changed, done) if done else changed, etag)
+        except OrderChanged:
+            continue
+        facts = [decision] + ([done] if done else [])
+        for fact in facts:
+            topic.publish(fact.event, saved, orders.event_data(fact, saved), correlation_id, traceparent)
+        logging.info("%s for order %s: %s", event["type"], order_id, [f.event for f in facts])
+        return func.HttpResponse(json.dumps({"applied": [f.event for f in facts]}), status_code=200, mimetype="application/json")
+    raise RuntimeError(f"Order {order_id} kept changing; gave up after {RETRIES} attempts.")
+
+
+def ignored(event: dict, why: str) -> func.HttpResponse:
+    logging.warning("Ignored %s %s: %s", event.get("type"), event.get("id"), why)
+    return func.HttpResponse(json.dumps({"ignored": why}), status_code=200, mimetype="application/json")
+
+
 # What each command wants, read from the request: intent(req) -> decide(order) -> Decision.
 
 
@@ -223,6 +269,14 @@ def retrieveListOfOrders(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="orders", methods=["POST"])
 def placeOrder(req: func.HttpRequest) -> func.HttpResponse:
     return place_order(req, _salesforce(req), OrderTopic.from_environment())
+
+
+@app.route(route="intake", methods=["POST"])
+def receiveEvent(req: func.HttpRequest) -> func.HttpResponse:
+    """The platform's event intake (integration-platform intake.openapi.yaml), not part of openapi.yaml."""
+    correlation_id = (req.get_json() or {}).get("correlationid", "") if req.get_body() else ""
+    sf = SalesforceApi.from_environment(correlation_id, req.headers.get("traceparent"))
+    return receive_event(req, sf, OrderTopic.from_environment())
 
 
 @app.route(route="orders/{orderId}", methods=["GET"])

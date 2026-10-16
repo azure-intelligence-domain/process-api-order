@@ -2,14 +2,13 @@ asyncapi: 2.6.0
 id: urn:azure-intelligence-domain:order:process-api-order
 info:
   title: '[Order] Order Events'
-  version: 1.0.0
-  description: 'The business events of the order domain, published by the Order Process API to evgt-intplat-order.
-    Names are business facts in the past tense (Event Storming), never CRUD: an order is placed, confirmed, amended,
-    put on hold, cancelled, paid or shipped; it is never updated or deleted. Every event carries orderid and customerid
-    as business keys and the order''s journey as correlationid (ord-<orderId>). Facts that follow a command (placed,
-    amended, delivery address changed, delivery rescheduled, put on hold, released, cancelled) are published since
-    1.0.0; facts that follow other domains'' events (confirmed, rejected, invoiced, paid, ready for shipment, shipped,
-    delivered, completed) are published once those domains publish theirs.'
+  version: 1.1.0
+  description: 'The business events of the order domain, published by the Order Process API to evgt-intplat-order,
+    and the facts of other domains it reacts to. Names are business facts in the past tense (Event Storming), never
+    CRUD: an order is placed, confirmed, amended, put on hold, cancelled, paid or shipped; it is never updated or
+    deleted. Every event carries orderid and customerid as business keys and the order''s journey as correlationid
+    (ord-<orderId>). Facts of other domains (finance, supply, logistics) become order facts through policies; they
+    reach the Order Process API through the platform''s event intake (ADR 0016).'
   contact:
     name: Order Domain Team
     url: https://github.com/azure-intelligence-domain/process-api-order
@@ -455,10 +454,208 @@ channels:
         - process-api-order
       message:
         $ref: '#/components/messages/orderCompleted'
+  finance.system-api-sap.event.sales-order-accepted:
+    description: SalesOrderAccepted, published by system-api-sap. The order domain's policy turns it into OrderConfirmed.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.salesOrderAccepted
+    subscribe:
+      operationId: receiveSalesOrderAccepted
+      summary: Receive SalesOrderAccepted.
+      description: 'The Order Process API receives SalesOrderAccepted through the platform''s event intake (subscription
+        process-api-order) and applies its policy: OrderConfirmed.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-sap/v1.0.0/asyncapi.yaml#/components/messages/salesOrderAccepted
+  finance.system-api-sap.event.sales-order-refused:
+    description: SalesOrderRefused, published by system-api-sap. The order domain's policy turns it into OrderRejected.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.salesOrderRefused
+    subscribe:
+      operationId: receiveSalesOrderRefused
+      summary: Receive SalesOrderRefused.
+      description: 'The Order Process API receives SalesOrderRefused through the platform''s event intake (subscription
+        process-api-order) and applies its policy: OrderRejected.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-sap/v1.0.0/asyncapi.yaml#/components/messages/salesOrderRefused
+  finance.system-api-sap.event.invoice-issued:
+    description: InvoiceIssued, published by system-api-sap. The order domain's policy turns it into OrderInvoiced.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.invoiceIssued
+    subscribe:
+      operationId: receiveInvoiceIssued
+      summary: Receive InvoiceIssued.
+      description: 'The Order Process API receives InvoiceIssued through the platform''s event intake (subscription
+        process-api-order) and applies its policy: OrderInvoiced.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-sap/v1.0.0/asyncapi.yaml#/components/messages/invoiceIssued
+  finance.system-api-sap.event.payment-received:
+    description: PaymentReceived, published by system-api-sap. The order domain's policy turns it into OrderPaid
+      (when the invoice is paid in full) and OrderCompleted (when also delivered).
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.paymentReceived
+    subscribe:
+      operationId: receivePaymentReceived
+      summary: Receive PaymentReceived.
+      description: 'The Order Process API receives PaymentReceived through the platform''s event intake (subscription
+        process-api-order) and applies its policy: OrderPaid (when the invoice is paid in full) and OrderCompleted
+        (when also delivered).'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-sap/v1.0.0/asyncapi.yaml#/components/messages/paymentReceived
+  supply.system-api-wms.event.stock-reserved:
+    description: StockReserved, published by system-api-wms. The order domain's policy turns it into OrderReadyForShipment.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-supply
+          eventType: com.acme.supply.stockReserved
+    subscribe:
+      operationId: receiveStockReserved
+      summary: Receive StockReserved.
+      description: 'The Order Process API receives StockReserved through the platform''s event intake (subscription
+        process-api-order) and applies its policy: OrderReadyForShipment.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-wms/v1.0.0/asyncapi.yaml#/components/messages/stockReserved
+  logistics.system-api-3pl.event.shipment-dispatched:
+    description: ShipmentDispatched, published by system-api-3pl. The order domain's policy turns it into OrderShipped.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-logistics
+          eventType: com.acme.logistics.shipmentDispatched
+    subscribe:
+      operationId: receiveShipmentDispatched
+      summary: Receive ShipmentDispatched.
+      description: 'The Order Process API receives ShipmentDispatched through the platform''s event intake (subscription
+        process-api-order) and applies its policy: OrderShipped.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-3pl/v1.0.0/asyncapi.yaml#/components/messages/shipmentDispatched
+  logistics.system-api-3pl.event.shipment-delivered:
+    description: ShipmentDelivered, published by system-api-3pl. The order domain's policy turns it into OrderDelivered
+      (and OrderCompleted when also paid).
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-logistics
+          eventType: com.acme.logistics.shipmentDelivered
+    subscribe:
+      operationId: receiveShipmentDelivered
+      summary: Receive ShipmentDelivered.
+      description: 'The Order Process API receives ShipmentDelivered through the platform''s event intake (subscription
+        process-api-order) and applies its policy: OrderDelivered (and OrderCompleted when also paid).'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-3pl/v1.0.0/asyncapi.yaml#/components/messages/shipmentDelivered
 components:
   securitySchemes:
     entraIdEventGrid:
       $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/asyncapi/landscape.asyncapi.yaml#/components/securitySchemes/entraIdEventGrid
+    platformIntake:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: The platform's event intake delivers with an Entra ID token of the gateway's managed identity
+        for the intplat-platform-apis application; Easy Auth lets only the gateways in (ADR 0016).
   messages:
     orderPlaced:
       messageId: orderPlaced
@@ -495,7 +692,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderPlaced-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.placed
           time: '2026-10-03T09:12:01Z'
           datacontenttype: application/json
@@ -510,13 +707,13 @@ components:
             - lineNumber: 1
               productId: SKU-1042
               quantity: 12
-              unitPrice: &id001
+              unitPrice:
                 value: 7000.0
                 currency: EUR
             totalAmount:
               value: 84000.0
               currency: EUR
-            deliveryAddress: &id002
+            deliveryAddress:
               street: Rue de la Loi 16
               postalCode: '1000'
               city: Brussels
@@ -556,7 +753,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderConfirmed-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.confirmed
           time: '2026-10-03T09:15:01Z'
           datacontenttype: application/json
@@ -567,6 +764,23 @@ components:
             orderId: '4711'
             erpOrderNumber: '8000043217'
             confirmedAt: '2026-10-03T09:15:00Z'
+            customerId: ACME
+            orderLines:
+            - lineNumber: 1
+              productId: SKU-1042
+              quantity: 12
+              unitPrice:
+                value: 7000.0
+                currency: EUR
+            totalAmount:
+              value: 84000.0
+              currency: EUR
+            deliveryAddress:
+              street: Rue de la Loi 16
+              postalCode: '1000'
+              city: Brussels
+              countryCode: BE
+            requestedDeliveryDate: '2026-10-09'
     orderRejected:
       messageId: orderRejected
       name: orderRejected
@@ -600,7 +814,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderRejected-4712-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.rejected
           time: '2026-10-03T09:20:01Z'
           datacontenttype: application/json
@@ -644,7 +858,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderAmended-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.amended
           time: '2026-10-03T11:00:01Z'
           datacontenttype: application/json
@@ -657,7 +871,9 @@ components:
             - lineNumber: 1
               productId: SKU-1042
               quantity: 12
-              unitPrice: *id001
+              unitPrice:
+                value: 7000.0
+                currency: EUR
             totalAmount:
               value: 84000.0
               currency: EUR
@@ -695,7 +911,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderDeliveryAddressChanged-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.deliveryAddressChanged
           time: '2026-10-04T08:00:01Z'
           datacontenttype: application/json
@@ -704,7 +920,11 @@ components:
           orderid: '4711'
           data:
             orderId: '4711'
-            deliveryAddress: *id002
+            deliveryAddress:
+              street: Rue de la Loi 16
+              postalCode: '1000'
+              city: Brussels
+              countryCode: BE
             changedAt: '2026-10-04T08:00:00Z'
     orderDeliveryRescheduled:
       messageId: orderDeliveryRescheduled
@@ -738,7 +958,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderDeliveryRescheduled-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.deliveryRescheduled
           time: '2026-10-04T08:05:01Z'
           datacontenttype: application/json
@@ -783,7 +1003,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderPutOnHold-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.putOnHold
           time: '2026-10-04T09:00:01Z'
           datacontenttype: application/json
@@ -826,7 +1046,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderReleased-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.released
           time: '2026-10-04T15:30:01Z'
           datacontenttype: application/json
@@ -869,7 +1089,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderCancelled-4713-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.cancelled
           time: '2026-10-04T10:00:01Z'
           datacontenttype: application/json
@@ -913,7 +1133,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderInvoiced-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.invoiced
           time: '2026-10-03T16:00:01Z'
           datacontenttype: application/json
@@ -957,7 +1177,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderPaid-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.paid
           time: '2026-10-05T10:40:01Z'
           datacontenttype: application/json
@@ -1003,7 +1223,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderReadyForShipment-4711-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.readyForShipment
           time: '2026-10-07T14:02:01Z'
           datacontenttype: application/json
@@ -1047,7 +1267,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderShipped-4710-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.shipped
           time: '2026-10-06T07:30:01Z'
           datacontenttype: application/json
@@ -1091,7 +1311,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderDelivered-4710-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.delivered
           time: '2026-10-08T11:20:01Z'
           datacontenttype: application/json
@@ -1134,7 +1354,7 @@ components:
         payload:
           specversion: '1.0'
           id: orderCompleted-4710-0001
-          source: /process-api-order/1.0.0
+          source: /process-api-order/1.1.0
           type: com.acme.order.completed
           time: '2026-10-08T11:20:03Z'
           datacontenttype: application/json
@@ -1265,6 +1485,22 @@ components:
           type: string
           format: date-time
           description: When the ERP confirmed. ISO 8601, UTC.
+        customerId:
+          type: string
+          description: The customer.
+        orderLines:
+          type: array
+          description: The order lines, so downstream domains need not ask.
+          items:
+            $ref: '#/components/schemas/orderLine'
+        totalAmount:
+          $ref: '#/components/schemas/money'
+        deliveryAddress:
+          $ref: '#/components/schemas/deliveryAddress'
+        requestedDeliveryDate:
+          type: string
+          format: date
+          description: Requested delivery date.
     orderRejectedData:
       type: object
       description: What OrderRejected says.
@@ -1450,6 +1686,25 @@ components:
           type: string
           format: date-time
           description: When the order became ready for shipment. ISO 8601, UTC.
+        reservationId:
+          type: string
+          description: The stock reservation in the warehouse.
+        customerId:
+          type: string
+          description: The customer.
+        orderLines:
+          type: array
+          description: The order lines, so downstream domains need not ask.
+          items:
+            $ref: '#/components/schemas/orderLine'
+        totalAmount:
+          $ref: '#/components/schemas/money'
+        deliveryAddress:
+          $ref: '#/components/schemas/deliveryAddress'
+        requestedDeliveryDate:
+          type: string
+          format: date
+          description: Requested delivery date.
     orderShippedData:
       type: object
       description: What OrderShipped says.
@@ -1468,6 +1723,12 @@ components:
           type: string
           format: date-time
           description: When the order was shipped. ISO 8601, UTC.
+        partnerId:
+          type: string
+          description: The 3PL partner.
+        trackingNumber:
+          type: string
+          description: The partner's tracking number.
     orderDeliveredData:
       type: object
       description: What OrderDelivered says.

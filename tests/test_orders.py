@@ -223,4 +223,111 @@ def test_every_operation_is_a_function():
     import yaml
     spec = yaml.safe_load(open("openapi.yaml"))
     operations = {op["operationId"] for path in spec["paths"].values() for op in path.values() if isinstance(op, dict) and "operationId" in op}
-    assert operations == names
+    assert operations == names - {"receiveEvent"}  # the event intake: the platform's contract
+
+
+# --- Policies -----------------------------------------------------------------------------------
+
+
+def event(type_, data, order_id="4711"):
+    return {"specversion": "1.0", "id": f"{type_}-1", "source": "/test", "type": type_, "time": "2026-10-16T10:00:00.000Z",
+            "datacontenttype": "application/json", "correlationid": "ord-4711", "orderid": order_id, "customerid": "ACME", "data": data}
+
+
+def deliver(sf, topic, type_, data, order_id="4711"):
+    response = api.receive_event(request("POST", "/intake", event(type_, data, order_id)), sf, topic)
+    return response.status_code, json.loads(response.get_body())
+
+
+ACCEPTED = ("com.acme.finance.salesOrderAccepted", {"orderId": "4711", "erpOrderNumber": "8000043217",
+            "netValue": {"value": 84000.0, "currency": "EUR"}, "acceptedAt": "2026-10-16T10:00:00Z"})
+INVOICED = ("com.acme.finance.invoiceIssued", {"orderId": "4711", "invoiceNumber": "90004711", "erpOrderNumber": "8000043217",
+            "amount": {"value": 84000.0, "currency": "EUR"}, "dueDate": "2026-11-15", "issuedAt": "2026-10-16T10:00:00Z"})
+RESERVED = ("com.acme.supply.stockReserved", {"orderId": "4711", "reservationId": "RSV-4711", "warehouseId": "BRU-1",
+            "orderLines": [{"productId": "SKU-1042", "quantity": 12}], "reservedAt": "2026-10-16T10:01:00Z"})
+DISPATCHED = ("com.acme.logistics.shipmentDispatched", {"orderId": "4711", "shipmentId": "SPD-004711", "partnerId": "speedy-3pl",
+              "trackingNumber": "SPD4711BE", "dispatchedAt": "2026-10-16T10:02:00Z"})
+DELIVERED = ("com.acme.logistics.shipmentDelivered", {"orderId": "4711", "shipmentId": "SPD-004711", "partnerId": "speedy-3pl",
+             "deliveredAt": "2026-10-17T10:00:00Z"})
+PAID = ("com.acme.finance.paymentReceived", {"orderId": "4711", "invoiceNumber": "90004711", "paymentId": "1400000001",
+        "amount": {"value": 84000.0, "currency": "EUR"}, "invoicePaidInFull": True, "receivedAt": "2026-10-18T10:00:00Z"})
+
+
+def test_order_4711_from_placed_to_completed(sf, topic):
+    placed(sf, topic)
+    for fact in (ACCEPTED, INVOICED, RESERVED, DISPATCHED, DELIVERED, PAID):
+        status, body = deliver(sf, topic, *fact)
+        assert status == 200 and "applied" in body, (fact[0], body)
+    assert [e[0] for e in topic.events] == ["OrderPlaced", "OrderConfirmed", "OrderInvoiced", "OrderReadyForShipment",
+                                           "OrderShipped", "OrderDelivered", "OrderPaid", "OrderCompleted"]
+    assert sf.orders["4711"]["status"] == "completed" and sf.orders["4711"]["paymentStatus"] == "paid"
+
+
+def test_confirmed_and_ready_carry_what_downstream_needs(sf, topic):
+    placed(sf, topic)
+    deliver(sf, topic, *ACCEPTED)
+    deliver(sf, topic, *RESERVED)
+    confirmed, ready = topic.events[1][2], topic.events[2][2]
+    for data in (confirmed, ready):
+        assert data["orderLines"][0]["productId"] == "SKU-1042" and data["deliveryAddress"]["city"] == "Brussels"
+    assert confirmed["erpOrderNumber"] == "8000043217" and ready["warehouseId"] == "BRU-1"
+
+
+def test_paid_before_delivered_completes_on_delivery(sf, topic):
+    placed(sf, topic)
+    for fact in (ACCEPTED, INVOICED, PAID, RESERVED, DISPATCHED, DELIVERED):
+        deliver(sf, topic, *fact)
+    assert [e[0] for e in topic.events][-2:] == ["OrderDelivered", "OrderCompleted"]
+
+
+def test_a_redelivered_fact_changes_nothing(sf, topic):
+    placed(sf, topic)
+    deliver(sf, topic, *ACCEPTED)
+    status, body = deliver(sf, topic, *ACCEPTED)
+    assert status == 200 and "ignored" in body and len(topic.events) == 2
+
+
+def test_refused_by_sap(sf, topic):
+    placed(sf, topic)
+    deliver(sf, topic, "com.acme.finance.salesOrderRefused", {"orderId": "4711", "erpOrderNumber": "8000043218",
+            "reason": "Credit limit exceeded.", "refusedAt": "2026-10-16T10:00:00Z"})
+    assert sf.orders["4711"]["status"] == "rejected" and topic.events[-1][0] == "OrderRejected"
+
+
+def test_a_fact_that_does_not_fit_is_ignored_not_retried(sf, topic):
+    placed(sf, topic)
+    do(api.cancel, sf, topic, "DELETE", params={"reason": "Withdrawn."})
+    status, body = deliver(sf, topic, *RESERVED)
+    assert status == 200 and "cancelled" in body["ignored"]
+
+
+def test_part_payment_is_not_paid(sf, topic):
+    placed(sf, topic)
+    deliver(sf, topic, *INVOICED)
+    status, body = deliver(sf, topic, PAID[0], {**PAID[1], "invoicePaidInFull": False})
+    assert "ignored" in body and sf.orders["4711"]["paymentStatus"] == "invoiced"
+
+
+def test_unknown_events_and_orders_are_ignored(sf, topic):
+    assert "ignored" in deliver(sf, topic, "com.acme.sales.opportunityWon", {})[1]
+    assert "ignored" in deliver(sf, topic, *ACCEPTED, order_id="9999")[1]
+
+
+def test_not_an_event_is_400(sf, topic):
+    assert api.receive_event(request("POST", "/intake", {"hello": "world"}), sf, topic).status_code == 400
+
+
+def test_order_events_match_asyncapi(sf, topic):
+    """Every fact the order domain publishes, policies included, matches its own asyncapi.yaml."""
+    import yaml
+    from jsonschema import Draft7Validator
+    spec = yaml.safe_load(open("asyncapi.yaml"))
+    by_type = {c["x-configurations"]["demo"]["eventGrid"]["eventType"]: c["publish"]["message"]["$ref"].rsplit("/", 1)[-1]
+               for c in spec["channels"].values() if "publish" in c}
+    placed(sf, topic)
+    for fact in (ACCEPTED, INVOICED, RESERVED, DISPATCHED, DELIVERED, PAID):
+        deliver(sf, topic, *fact)
+    for fact, _, data, _ in topic.events:
+        schema = spec["components"]["schemas"][by_type[event_type(fact)] + "Data"]
+        errors = list(Draft7Validator({**schema, "components": spec["components"]}).iter_errors(data))
+        assert not errors, (fact, [e.message for e in errors])
