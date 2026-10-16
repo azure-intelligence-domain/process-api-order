@@ -149,7 +149,7 @@ def order_to_delivery():
                     ("Event_OrderInvoiced", "Task_Payment", ""), ("Task_Payment", "Event_OrderPaid", ""),
                     ("Event_OrderPaid", "Gateway_Join", ""),
                     ("Gateway_Split", "Task_Reserve", ""), ("Task_Reserve", "Event_Ready", ""),
-                    ("Event_Ready", "Task_Ship", "stock-to-3pl"), ("Task_Ship", "Event_Shipped", ""),
+                    ("Event_Ready", "Task_Ship", "logistics-intake"), ("Task_Ship", "Event_Shipped", ""),
                     ("Event_Shipped", "Task_Deliver", ""), ("Task_Deliver", "Event_Delivered", ""),
                     ("Event_Delivered", "Gateway_Join", ""), ("Gateway_Join", "End_Completed", "")]:
         f.edge(s, t, n)

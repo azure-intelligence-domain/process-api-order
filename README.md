@@ -23,6 +23,8 @@ The **Order Process API** (Azure Function, Python) is the brain: it owns the ord
 and its facts. **Logic Apps** are the hands: integration flows that move data between systems
 (mapping, calls). They never call each other: they react to events, and they reach systems only
 through the gateway ([ADR 0014](https://github.com/azure-intelligence-domain/ai-intelligence-domain/blob/main/docs/adr/0014-process-layer-split.md)).
+There is one per **receiving** domain, owned by that domain's team and speaking only to its own
+System APIs ([ADR 0015](https://github.com/azure-intelligence-domain/ai-intelligence-domain/blob/main/docs/adr/0015-one-intake-per-domain.md)).
 
 ```mermaid
 flowchart LR
@@ -44,10 +46,10 @@ flowchart LR
         tSup[["evgt-intplat-supply<br/>StockReserved"]]
         tLog[["evgt-intplat-logistics<br/>ShipmentDispatched · ShipmentDelivered"]]
     end
-    subgraph flows["Integration flows · the hands · Logic Apps"]
-        la1["order-to-erp<br/>on OrderPlaced, OrderAmended,<br/>OrderCancelled ..."]
-        la2["order-to-warehouse<br/>on OrderConfirmed"]
-        la3["stock-to-3pl<br/>on StockReserved"]
+    subgraph flows["Integration flows · the hands · one Logic App per receiving domain"]
+        la1["finance-intake<br/>on OrderPlaced, OrderAmended,<br/>OrderCancelled"]
+        la2["supply-intake<br/>on OrderConfirmed, OrderCancelled"]
+        la3["logistics-intake<br/>on StockReserved"]
     end
     subgraph sys["System APIs · Functions"]
         sSf["Salesforce System API"]
@@ -92,29 +94,29 @@ sequenceDiagram
     participant SR as Sales rep
     participant P as Order Process API (Function)
     participant EO as evgt-intplat-order
-    participant L1 as order-to-erp (Logic App)
+    participant L1 as finance-intake (Logic App)
     participant SAP as SAP System API
     participant EF as evgt-intplat-finance
-    participant L2 as order-to-warehouse (Logic App)
+    participant L2 as supply-intake (Logic App)
     participant WMS as WMS System API
     participant ES as evgt-intplat-supply
-    participant L3 as stock-to-3pl (Logic App)
+    participant L3 as logistics-intake (Logic App)
     participant TPL as 3PL System API
 
     SR->>P: Place Order (via gateway)
     P->>P: validate, idempotency, status = placed
     P->>EO: OrderPlaced
-    EO->>L1: OrderPlaced (own queue)
+    EO->>L1: OrderPlaced (finance queue)
     L1->>SAP: Create sales order (mapping)
     SAP->>EF: SalesOrderAccepted
     EF->>P: policy: ERP accepted
     P->>EO: OrderConfirmed
-    EO->>L2: OrderConfirmed (own queue)
+    EO->>L2: OrderConfirmed (supply queue)
     L2->>WMS: Reserve stock (mapping)
     WMS->>ES: StockReserved
     ES->>P: policy: stock reserved
     P->>EO: OrderReadyForShipment
-    ES->>L3: StockReserved (own queue)
+    ES->>L3: StockReserved (logistics queue)
     L3->>TPL: Shipment request (mapping v2.4)
     TPL--xL3: 400 schema mismatch
     L3->>L3: retries exhausted → dead-letter queue
@@ -214,6 +216,58 @@ stateDiagram-v2
     completed --> [*]
 ```
 
+## Data model
+
+One aggregate, the **Order**, with its lines and two value objects. Salesforce keeps it (system of
+record); `Account` and `Product` belong to the sales domain. Defined once in [`ai-intelligence-domain/docs/architecture/data_models.py`](https://github.com/azure-intelligence-domain/ai-intelligence-domain/blob/main/docs/architecture/data_models.py), which also writes the entities of EventCatalog.
+
+```mermaid
+erDiagram
+    Order {
+        string orderId PK
+        string customerId FK
+        string channel
+        string status
+        string paymentStatus
+        list orderLines
+        Money totalAmount
+        DeliveryAddress deliveryAddress
+        date requestedDeliveryDate
+        string holdReason
+        string cancellationReason
+        datetime createdAt
+        datetime updatedAt
+    }
+    OrderLine {
+        integer lineNumber
+        string productId FK
+        integer quantity
+        Money unitPrice
+    }
+    DeliveryAddress {
+        string street
+        string postalCode
+        string city
+        string countryCode
+    }
+    Money {
+        number value
+        string currency
+    }
+    Account {
+        string see_sales_domain
+    }
+    Product {
+        string see_sales_domain
+    }
+    Order }o--|| Account : "customerId"
+    Order ||--|{ OrderLine : "orderLines"
+    Order ||--|| Money : "totalAmount"
+    Order ||--|| DeliveryAddress : "deliveryAddress"
+    OrderLine }o--|| Product : "productId"
+    OrderLine ||--|| Money : "unitPrice"
+```
+
 ## Flows (BPMN)
 
 The `.bpmn` files are the source: open them in Camunda Modeler or
@@ -253,7 +307,7 @@ flowchart LR
     accepted -- yes --> confirmed --> split
     split --> invoice
     split --> reserve
-    ready -- "stock-to-3pl" --> ship
+    ready -- "logistics-intake" --> ship
     paid --> join
     delivered --> join
     join --> completed

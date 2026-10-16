@@ -141,7 +141,7 @@
     <bpmn:sequenceFlow id="Flow_11" name="" sourceRef="Event_OrderPaid" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_12" name="" sourceRef="Gateway_Split" targetRef="Task_Reserve" />
     <bpmn:sequenceFlow id="Flow_13" name="" sourceRef="Task_Reserve" targetRef="Event_Ready" />
-    <bpmn:sequenceFlow id="Flow_14" name="stock-to-3pl" sourceRef="Event_Ready" targetRef="Task_Ship" />
+    <bpmn:sequenceFlow id="Flow_14" name="logistics-intake" sourceRef="Event_Ready" targetRef="Task_Ship" />
     <bpmn:sequenceFlow id="Flow_15" name="" sourceRef="Task_Ship" targetRef="Event_Shipped" />
     <bpmn:sequenceFlow id="Flow_16" name="" sourceRef="Event_Shipped" targetRef="Task_Deliver" />
     <bpmn:sequenceFlow id="Flow_17" name="" sourceRef="Task_Deliver" targetRef="Event_Delivered" />
