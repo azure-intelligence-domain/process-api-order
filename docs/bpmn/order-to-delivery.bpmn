@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_OrderToDelivery" targetNamespace="https://github.com/azure-intelligence-domain/process-api-order">
+  <bpmn:collaboration id="Collaboration_OrderToDelivery">
+    <bpmn:participant id="Participant_OrderToDelivery" name="Order to delivery (ACME order 4711)" processRef="OrderToDelivery" />
+  </bpmn:collaboration>
+  <bpmn:process id="OrderToDelivery" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_OrderToDelivery">
+      <bpmn:lane id="Lane_Sales" name="Sales · Salesforce">
+        <bpmn:flowNodeRef>Start_ClosedWon</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PlaceOrder</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Order" name="Order domain">
+        <bpmn:flowNodeRef>Event_OrderPlaced</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_OrderConfirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Completed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Erp" name="ERP · SAP">
+        <bpmn:flowNodeRef>Task_Confirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finance" name="Finance">
+        <bpmn:flowNodeRef>Task_Invoice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_OrderInvoiced</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Payment</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_OrderPaid</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Warehouse" name="Warehouse · WMS">
+        <bpmn:flowNodeRef>Task_Reserve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Ready</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Logistics" name="3PL partner">
+        <bpmn:flowNodeRef>Task_Ship</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Shipped</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Deliver</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Delivered</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_ClosedWon" name="Opportunity closed-won">
+      <bpmn:outgoing>Flow_0</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_PlaceOrder" name="Place order">
+      <bpmn:incoming>Flow_0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateThrowEvent id="Event_OrderPlaced" name="OrderPlaced">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_OrderPlaced" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="Task_Confirm" name="Check credit and availability">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Accepted" name="Accepted?">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Rejected" name="OrderRejected">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:messageEventDefinition id="Message_End_Rejected" />
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="Event_OrderConfirmed" name="OrderConfirmed">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_OrderConfirmed" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:parallelGateway id="Gateway_Split" name="">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Task_Invoice" name="Issue invoice">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="Event_OrderInvoiced" name="OrderInvoiced">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_OrderInvoiced" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:receiveTask id="Task_Payment" name="Receive payment">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:intermediateThrowEvent id="Event_OrderPaid" name="OrderPaid">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_OrderPaid" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="Task_Reserve" name="Reserve stock">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="Event_Ready" name="OrderReadyForShipment">
+      <bpmn:incoming>Flow_13</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_Ready" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="Task_Ship" name="Request and dispatch shipment">
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+      <bpmn:outgoing>Flow_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="Event_Shipped" name="OrderShipped">
+      <bpmn:incoming>Flow_15</bpmn:incoming>
+      <bpmn:outgoing>Flow_16</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_Shipped" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="Task_Deliver" name="Deliver to customer">
+      <bpmn:incoming>Flow_16</bpmn:incoming>
+      <bpmn:outgoing>Flow_17</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="Event_Delivered" name="OrderDelivered">
+      <bpmn:incoming>Flow_17</bpmn:incoming>
+      <bpmn:outgoing>Flow_18</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_Delivered" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:parallelGateway id="Gateway_Join" name="">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:incoming>Flow_18</bpmn:incoming>
+      <bpmn:outgoing>Flow_19</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:endEvent id="End_Completed" name="OrderCompleted">
+      <bpmn:incoming>Flow_19</bpmn:incoming>
+      <bpmn:messageEventDefinition id="Message_End_Completed" />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0" name="" sourceRef="Start_ClosedWon" targetRef="Task_PlaceOrder" />
+    <bpmn:sequenceFlow id="Flow_1" name="" sourceRef="Task_PlaceOrder" targetRef="Event_OrderPlaced" />
+    <bpmn:sequenceFlow id="Flow_2" name="" sourceRef="Event_OrderPlaced" targetRef="Task_Confirm" />
+    <bpmn:sequenceFlow id="Flow_3" name="" sourceRef="Task_Confirm" targetRef="Gateway_Accepted" />
+    <bpmn:sequenceFlow id="Flow_4" name="no" sourceRef="Gateway_Accepted" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_5" name="yes" sourceRef="Gateway_Accepted" targetRef="Event_OrderConfirmed" />
+    <bpmn:sequenceFlow id="Flow_6" name="" sourceRef="Event_OrderConfirmed" targetRef="Gateway_Split" />
+    <bpmn:sequenceFlow id="Flow_7" name="" sourceRef="Gateway_Split" targetRef="Task_Invoice" />
+    <bpmn:sequenceFlow id="Flow_8" name="" sourceRef="Task_Invoice" targetRef="Event_OrderInvoiced" />
+    <bpmn:sequenceFlow id="Flow_9" name="" sourceRef="Event_OrderInvoiced" targetRef="Task_Payment" />
+    <bpmn:sequenceFlow id="Flow_10" name="" sourceRef="Task_Payment" targetRef="Event_OrderPaid" />
+    <bpmn:sequenceFlow id="Flow_11" name="" sourceRef="Event_OrderPaid" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_12" name="" sourceRef="Gateway_Split" targetRef="Task_Reserve" />
+    <bpmn:sequenceFlow id="Flow_13" name="" sourceRef="Task_Reserve" targetRef="Event_Ready" />
+    <bpmn:sequenceFlow id="Flow_14" name="stock-to-3pl" sourceRef="Event_Ready" targetRef="Task_Ship" />
+    <bpmn:sequenceFlow id="Flow_15" name="" sourceRef="Task_Ship" targetRef="Event_Shipped" />
+    <bpmn:sequenceFlow id="Flow_16" name="" sourceRef="Event_Shipped" targetRef="Task_Deliver" />
+    <bpmn:sequenceFlow id="Flow_17" name="" sourceRef="Task_Deliver" targetRef="Event_Delivered" />
+    <bpmn:sequenceFlow id="Flow_18" name="" sourceRef="Event_Delivered" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_19" name="" sourceRef="Gateway_Join" targetRef="End_Completed" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_OrderToDelivery">
+    <bpmndi:BPMNPlane id="Plane_OrderToDelivery" bpmnElement="Collaboration_OrderToDelivery">
+      <bpmndi:BPMNShape id="Participant_OrderToDelivery_di" bpmnElement="Participant_OrderToDelivery" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="2750" height="730" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Sales_di" bpmnElement="Lane_Sales" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="2720" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Order_di" bpmnElement="Lane_Order" isHorizontal="true">
+        <dc:Bounds x="130" y="180" width="2720" height="130" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Erp_di" bpmnElement="Lane_Erp" isHorizontal="true">
+        <dc:Bounds x="130" y="310" width="2720" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Finance_di" bpmnElement="Lane_Finance" isHorizontal="true">
+        <dc:Bounds x="130" y="430" width="2720" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Warehouse_di" bpmnElement="Lane_Warehouse" isHorizontal="true">
+        <dc:Bounds x="130" y="550" width="2720" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Logistics_di" bpmnElement="Lane_Logistics" isHorizontal="true">
+        <dc:Bounds x="130" y="670" width="2720" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_ClosedWon_di" bpmnElement="Start_ClosedWon">
+        <dc:Bounds x="212" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="162" y="142" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PlaceOrder_di" bpmnElement="Task_PlaceOrder">
+        <dc:Bounds x="335" y="80" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_OrderPlaced_di" bpmnElement="Event_OrderPlaced">
+        <dc:Bounds x="552" y="227" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="502" y="267" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Confirm_di" bpmnElement="Task_Confirm">
+        <dc:Bounds x="675" y="330" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Accepted_di" bpmnElement="Gateway_Accepted" isMarkerVisible="true">
+        <dc:Bounds x="885" y="345" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="835" y="399" width="150" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected">
+        <dc:Bounds x="1062" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1012" y="392" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_OrderConfirmed_di" bpmnElement="Event_OrderConfirmed">
+        <dc:Bounds x="1062" y="227" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1012" y="267" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Split_di" bpmnElement="Gateway_Split">
+        <dc:Bounds x="1225" y="220" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1175" y="274" width="150" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Invoice_di" bpmnElement="Task_Invoice">
+        <dc:Bounds x="1355" y="450" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_OrderInvoiced_di" bpmnElement="Event_OrderInvoiced">
+        <dc:Bounds x="1572" y="472" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1522" y="512" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Payment_di" bpmnElement="Task_Payment">
+        <dc:Bounds x="1695" y="450" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_OrderPaid_di" bpmnElement="Event_OrderPaid">
+        <dc:Bounds x="1912" y="472" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1862" y="512" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Reserve_di" bpmnElement="Task_Reserve">
+        <dc:Bounds x="1355" y="570" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_Ready_di" bpmnElement="Event_Ready">
+        <dc:Bounds x="1572" y="592" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1522" y="632" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Ship_di" bpmnElement="Task_Ship">
+        <dc:Bounds x="1695" y="690" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_Shipped_di" bpmnElement="Event_Shipped">
+        <dc:Bounds x="1912" y="712" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1862" y="752" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Deliver_di" bpmnElement="Task_Deliver">
+        <dc:Bounds x="2035" y="690" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_Delivered_di" bpmnElement="Event_Delivered">
+        <dc:Bounds x="2252" y="712" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2202" y="752" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join">
+        <dc:Bounds x="2415" y="220" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2365" y="274" width="150" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Completed_di" bpmnElement="End_Completed">
+        <dc:Bounds x="2592" y="227" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2542" y="267" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0_di" bpmnElement="Flow_0">
+        <di:waypoint x="248" y="120" />
+        <di:waypoint x="335" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="465" y="120" />
+        <di:waypoint x="508" y="120" />
+        <di:waypoint x="508" y="245" />
+        <di:waypoint x="552" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="588" y="245" />
+        <di:waypoint x="632" y="245" />
+        <di:waypoint x="632" y="370" />
+        <di:waypoint x="675" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="805" y="370" />
+        <di:waypoint x="885" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="935" y="370" />
+        <di:waypoint x="1062" y="370" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="978" y="352" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="935" y="370" />
+        <di:waypoint x="998" y="370" />
+        <di:waypoint x="998" y="245" />
+        <di:waypoint x="1062" y="245" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1010" y="227" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <di:waypoint x="1098" y="245" />
+        <di:waypoint x="1225" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7">
+        <di:waypoint x="1275" y="245" />
+        <di:waypoint x="1315" y="245" />
+        <di:waypoint x="1315" y="490" />
+        <di:waypoint x="1355" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8">
+        <di:waypoint x="1485" y="490" />
+        <di:waypoint x="1572" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9">
+        <di:waypoint x="1608" y="490" />
+        <di:waypoint x="1695" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10">
+        <di:waypoint x="1825" y="490" />
+        <di:waypoint x="1912" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11">
+        <di:waypoint x="1948" y="490" />
+        <di:waypoint x="2182" y="490" />
+        <di:waypoint x="2182" y="245" />
+        <di:waypoint x="2415" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12">
+        <di:waypoint x="1275" y="245" />
+        <di:waypoint x="1315" y="245" />
+        <di:waypoint x="1315" y="610" />
+        <di:waypoint x="1355" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13">
+        <di:waypoint x="1485" y="610" />
+        <di:waypoint x="1572" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14">
+        <di:waypoint x="1608" y="610" />
+        <di:waypoint x="1652" y="610" />
+        <di:waypoint x="1652" y="730" />
+        <di:waypoint x="1695" y="730" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1653" y="712" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_15_di" bpmnElement="Flow_15">
+        <di:waypoint x="1825" y="730" />
+        <di:waypoint x="1912" y="730" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_16_di" bpmnElement="Flow_16">
+        <di:waypoint x="1948" y="730" />
+        <di:waypoint x="2035" y="730" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_17_di" bpmnElement="Flow_17">
+        <di:waypoint x="2165" y="730" />
+        <di:waypoint x="2252" y="730" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_18_di" bpmnElement="Flow_18">
+        <di:waypoint x="2288" y="730" />
+        <di:waypoint x="2352" y="730" />
+        <di:waypoint x="2352" y="245" />
+        <di:waypoint x="2415" y="245" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19_di" bpmnElement="Flow_19">
+        <di:waypoint x="2465" y="245" />
+        <di:waypoint x="2592" y="245" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

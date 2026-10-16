@@ -1,0 +1,818 @@
+openapi: 3.0.3
+info:
+  title: '[Order] Order Process API'
+  version: 0.1.0
+  description: 'The order lifecycle of the order domain: place, retrieve, amend, reschedule, hold, release and cancel
+    orders. Every command that changes an order publishes a business event (OrderPlaced, OrderAmended, OrderCancelled,
+    ...) to evgt-intplat-order; see asyncapi.yaml. Cancelling is a soft delete: the order keeps existing with status
+    cancelled. Retrievals are tapped by the gateway as query events with the business keys declared in x-business-keys.
+    Version 0.x: designed, not implemented yet.'
+  contact:
+    name: Order Domain Team
+    url: https://github.com/azure-intelligence-domain/process-api-order
+  license:
+    name: MIT
+    url: https://github.com/azure-intelligence-domain/process-api-order/blob/main/LICENSE
+  x-gateway: other
+x-gateway: other
+externalDocs:
+  description: EventCatalog entry of the order domain
+  url: https://azure-intelligence-domain.github.io/eventcatalog/docs/domains/order/1.0.0
+servers:
+- url: https://apim-intplat-demo.azure-api.net/order
+  description: Gateway for people and websites. No version in the URI.
+- url: https://apim-intplat-agents.azure-api.net/order
+  description: 'Gateway for AI agents: Entra ID token per agent, every call audited.'
+security:
+- subscriptionKey: []
+- subscriptionKey: []
+  agentToken: []
+tags:
+- name: Orders
+  description: The order lifecycle of the order domain.
+paths:
+  /orders:
+    x-summary: Orders
+    get:
+      tags:
+      - Orders
+      operationId: retrieveListOfOrders
+      summary: Retrieve List of Orders
+      description: Orders, newest first, optionally filtered by customer and status. Paged with offset and limit.
+      parameters:
+      - $ref: '#/components/parameters/customerId'
+      - $ref: '#/components/parameters/status'
+      - $ref: '#/components/parameters/offset'
+      - $ref: '#/components/parameters/limit'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '200':
+          description: A page of orders.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/orderList'
+              example:
+                _links:
+                  self:
+                    href: /orders?customerId=ACME&offset=0&limit=20
+                  first:
+                    href: /orders?customerId=ACME&limit=20
+                  last:
+                    href: /orders?customerId=ACME&offset=0&limit=20
+                totalCount: 1
+                _embedded:
+                  orders:
+                  - &id006
+                    _links: &id001
+                      self:
+                        href: /orders/4711
+                      orderLines:
+                        href: /orders/4711/order-lines
+                      deliveryAddress:
+                        href: /orders/4711/delivery-address
+                      hold:
+                        href: /orders/4711/hold
+                    orderId: '4711'
+                    customerId: ACME
+                    channel: salesforce
+                    status: confirmed
+                    paymentStatus: paid
+                    orderLines: &id002
+                    - lineNumber: 1
+                      productId: SKU-1042
+                      quantity: 12
+                      unitPrice:
+                        value: 7000.0
+                        currency: EUR
+                    totalAmount: &id003
+                      value: 84000.0
+                      currency: EUR
+                    deliveryAddress: &id004
+                      street: Rue de la Loi 16
+                      postalCode: '1000'
+                      city: Brussels
+                      countryCode: BE
+                    requestedDeliveryDate: '2026-10-09'
+                    createdAt: '2026-10-03T09:12:00Z'
+                    updatedAt: '2026-10-05T10:40:00Z'
+        '400': &id005
+          description: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/process-api-order/blob/main/docs/problems/invalid-request.md
+                title: Invalid Request
+                status: 400
+                detail: The request does not match the contract, or the Correlation-Id header is missing or invalid.
+                instance: /orders/4711
+      x-business-keys:
+        customerid: query.customerId
+    post:
+      tags:
+      - Orders
+      operationId: placeOrder
+      summary: Place Order
+      description: Places an order for a customer. Publishes OrderPlaced. Send an Idempotency-Key, so a retried
+        request (for example by an agent) does not place the order twice.
+      parameters:
+      - $ref: '#/components/parameters/idempotencyKey'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '201':
+          description: The order was placed.
+          headers:
+            Location:
+              description: URI of the new order.
+              schema:
+                type: string
+              example: /orders/4711
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example:
+                _links: *id001
+                orderId: '4711'
+                customerId: ACME
+                channel: salesforce
+                status: placed
+                paymentStatus: unpaid
+                orderLines: *id002
+                totalAmount: *id003
+                deliveryAddress: *id004
+                requestedDeliveryDate: '2026-10-09'
+                createdAt: '2026-10-03T09:12:00Z'
+                updatedAt: '2026-10-03T09:12:00Z'
+        '400': *id005
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/placeOrderRequest'
+            example:
+              customerId: ACME
+              channel: salesforce
+              orderLines:
+              - productId: SKU-1042
+                quantity: 12
+                unitPrice:
+                  value: 7000.0
+                  currency: EUR
+              deliveryAddress: *id004
+              requestedDeliveryDate: '2026-10-09'
+      x-business-keys:
+        customerid: body.customerId
+      x-events:
+      - OrderPlaced
+  /orders/{orderId}:
+    x-summary: Order
+    get:
+      tags:
+      - Orders
+      operationId: retrieveOrder
+      summary: Retrieve Order
+      description: One order with its lines, status and payment status.
+      parameters: &id008
+      - $ref: '#/components/parameters/orderId'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example: *id006
+        '400': *id005
+        '404': &id007
+          description: No order with this order id exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/process-api-order/blob/main/docs/problems/order-not-found.md
+                title: Order Not Found
+                status: 404
+                detail: No order with this order id exists.
+                instance: /orders/4711
+      x-business-keys:
+        orderid: path.orderId
+    delete:
+      tags:
+      - Orders
+      operationId: cancelOrder
+      summary: Cancel Order
+      description: 'Cancels the order: a soft delete, the order keeps existing with status cancelled. Publishes
+        OrderCancelled. Allowed while the order is placed, confirmed or on hold.'
+      parameters:
+      - $ref: '#/components/parameters/orderId'
+      - $ref: '#/components/parameters/cancellationReason'
+      - $ref: '#/components/parameters/correlationId'
+      responses:
+        '200':
+          description: The cancelled order.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example:
+                _links: *id001
+                orderId: '4711'
+                customerId: ACME
+                channel: salesforce
+                status: cancelled
+                paymentStatus: paid
+                orderLines: *id002
+                totalAmount: *id003
+                deliveryAddress: *id004
+                requestedDeliveryDate: '2026-10-09'
+                createdAt: '2026-10-03T09:12:00Z'
+                updatedAt: '2026-10-05T10:40:00Z'
+        '400': *id005
+        '404': *id007
+        '409': &id009
+          description: The order's current status does not allow this change, for example cancelling an order that
+            has already shipped.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/problemDetail'
+              example:
+                type: https://github.com/azure-intelligence-domain/process-api-order/blob/main/docs/problems/order-state-conflict.md
+                title: Order State Conflict
+                status: 409
+                detail: The order's current status does not allow this change, for example cancelling an order that
+                  has already shipped.
+                instance: /orders/4711
+      x-business-keys:
+        orderid: path.orderId
+      x-events:
+      - OrderCancelled
+  /orders/{orderId}/order-lines:
+    x-summary: Order Lines
+    put:
+      tags:
+      - Orders
+      operationId: amendOrderLines
+      summary: Amend Order Lines
+      description: Replaces the order lines, for example a changed quantity. Publishes OrderAmended. Allowed while
+        placed or confirmed.
+      parameters: *id008
+      responses:
+        '200':
+          description: The amended order.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example: *id006
+        '400': *id005
+        '404': *id007
+        '409': *id009
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/orderLinesChange'
+            example:
+              orderLines:
+              - productId: SKU-1042
+                quantity: 10
+                unitPrice:
+                  value: 7000.0
+                  currency: EUR
+      x-business-keys:
+        orderid: path.orderId
+      x-events:
+      - OrderAmended
+  /orders/{orderId}/delivery-address:
+    x-summary: Delivery Address
+    put:
+      tags:
+      - Orders
+      operationId: changeDeliveryAddress
+      summary: Change Delivery Address
+      description: Sends the order to another address. Publishes OrderDeliveryAddressChanged. Allowed until the
+        order is ready for shipment.
+      parameters: *id008
+      responses:
+        '200':
+          description: The order with its new delivery address.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example: *id006
+        '400': *id005
+        '404': *id007
+        '409': *id009
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/deliveryAddress'
+            example:
+              street: Avenue Louise 54
+              postalCode: '1050'
+              city: Brussels
+              countryCode: BE
+      x-business-keys:
+        orderid: path.orderId
+      x-events:
+      - OrderDeliveryAddressChanged
+  /orders/{orderId}/requested-delivery-date:
+    x-summary: Requested Delivery Date
+    put:
+      tags:
+      - Orders
+      operationId: rescheduleDelivery
+      summary: Reschedule Delivery
+      description: Moves the requested delivery date. Publishes OrderDeliveryRescheduled. Allowed until the order
+        has shipped.
+      parameters: *id008
+      responses:
+        '200':
+          description: The order with its new requested delivery date.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example: *id006
+        '400': *id005
+        '404': *id007
+        '409': *id009
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/requestedDeliveryDateChange'
+            example:
+              requestedDeliveryDate: '2026-10-14'
+      x-business-keys:
+        orderid: path.orderId
+      x-events:
+      - OrderDeliveryRescheduled
+  /orders/{orderId}/hold:
+    x-summary: Order Hold
+    put:
+      tags:
+      - Orders
+      operationId: putOrderOnHold
+      summary: Put Order on Hold
+      description: Stops the order from progressing, for example during a credit check. Publishes OrderPutOnHold.
+        Allowed while confirmed.
+      parameters: *id008
+      responses:
+        '200':
+          description: The order on hold.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example:
+                _links: *id001
+                orderId: '4711'
+                customerId: ACME
+                channel: salesforce
+                status: onHold
+                paymentStatus: paid
+                orderLines: *id002
+                totalAmount: *id003
+                deliveryAddress: *id004
+                requestedDeliveryDate: '2026-10-09'
+                createdAt: '2026-10-03T09:12:00Z'
+                updatedAt: '2026-10-05T10:40:00Z'
+        '400': *id005
+        '404': *id007
+        '409': *id009
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/holdRequest'
+            example:
+              reason: Credit limit exceeded, awaiting approval.
+      x-business-keys:
+        orderid: path.orderId
+      x-events:
+      - OrderPutOnHold
+    delete:
+      tags:
+      - Orders
+      operationId: releaseOrder
+      summary: Release Order
+      description: 'Lifts the hold: the order continues as confirmed. Publishes OrderReleased.'
+      parameters: *id008
+      responses:
+        '200':
+          description: The released order.
+          content:
+            application/hal+json:
+              schema:
+                $ref: '#/components/schemas/order'
+              example: *id006
+        '400': *id005
+        '404': *id007
+        '409': *id009
+      x-business-keys:
+        orderid: path.orderId
+      x-events:
+      - OrderReleased
+components:
+  securitySchemes:
+    subscriptionKey:
+      type: apiKey
+      in: header
+      name: Ocp-Apim-Subscription-Key
+      description: API Management subscription key of the consuming application or agent.
+    agentToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Agent gateway only: an Entra ID token for the intplat-agent-gateway application with the Agent.Act
+        role.'
+  parameters:
+    orderId:
+      name: orderId
+      in: path
+      required: true
+      description: The order id, for example 4711.
+      schema:
+        type: string
+        pattern: ^[A-Za-z0-9][A-Za-z0-9-]*$
+        maxLength: 64
+      example: '4711'
+    correlationId:
+      name: Correlation-Id
+      in: header
+      required: true
+      description: The business journey this call belongs to, for example ord-4711. The same value as the correlationid
+        attribute of the events in that journey.
+      schema:
+        type: string
+        pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+        maxLength: 64
+      example: ord-4711
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Unique per intended order. A retry with the same key returns the order placed by the first request.
+      schema:
+        type: string
+        maxLength: 64
+      example: 0b7e2a4c-4711-4c1e-9d2a-acme0001
+    customerId:
+      name: customerId
+      in: query
+      required: false
+      description: Only orders of this customer.
+      schema:
+        type: string
+      example: ACME
+    status:
+      name: status
+      in: query
+      required: false
+      description: Only orders with this status.
+      schema:
+        $ref: '#/components/schemas/orderStatus'
+      example: confirmed
+    offset:
+      name: offset
+      in: query
+      required: false
+      description: Number of orders to skip (adidas pagination).
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+    limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of orders to return (adidas pagination).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+    cancellationReason:
+      name: reason
+      in: query
+      required: true
+      description: Why the order is cancelled. Kept on the order and in OrderCancelled.
+      schema:
+        type: string
+        maxLength: 200
+      example: Customer withdrew the order.
+  schemas:
+    orderStatus:
+      type: string
+      description: Where the order is in its lifecycle (a state machine; see the BPMN flows in EventCatalog).
+      enum:
+      - placed
+      - confirmed
+      - rejected
+      - onHold
+      - readyForShipment
+      - shipped
+      - delivered
+      - completed
+      - cancelled
+    paymentStatus:
+      type: string
+      description: 'Payment, separate from the order status: an order can be shipped and still unpaid.'
+      enum:
+      - unpaid
+      - invoiced
+      - paid
+    money:
+      type: object
+      description: An amount of money.
+      required:
+      - value
+      - currency
+      properties:
+        value:
+          type: number
+          description: The amount.
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          description: ISO 4217 currency code.
+    deliveryAddress:
+      type: object
+      description: Where the order is delivered.
+      required:
+      - street
+      - postalCode
+      - city
+      - countryCode
+      properties:
+        street:
+          type: string
+          description: Street and number.
+        postalCode:
+          type: string
+          description: Postal code.
+        city:
+          type: string
+          description: City.
+        countryCode:
+          type: string
+          pattern: ^[A-Z]{2}$
+          description: ISO 3166-1 alpha-2 country code.
+    orderLine:
+      type: object
+      description: One product in the order.
+      required:
+      - productId
+      - quantity
+      - unitPrice
+      properties:
+        lineNumber:
+          type: integer
+          minimum: 1
+          description: Position in the order, assigned by the order domain.
+        productId:
+          type: string
+          description: The product.
+        quantity:
+          type: integer
+          minimum: 1
+          description: Units ordered.
+        unitPrice:
+          $ref: '#/components/schemas/money'
+    placeOrderRequest:
+      type: object
+      description: What is needed to place an order.
+      required:
+      - customerId
+      - channel
+      - orderLines
+      - deliveryAddress
+      properties:
+        customerId:
+          type: string
+          description: The customer placing the order.
+        channel:
+          $ref: '#/components/schemas/channel'
+        orderLines:
+          type: array
+          minItems: 1
+          description: The products ordered.
+          items:
+            $ref: '#/components/schemas/orderLine'
+        deliveryAddress:
+          $ref: '#/components/schemas/deliveryAddress'
+        requestedDeliveryDate:
+          type: string
+          format: date
+          description: Requested delivery date. ISO 8601.
+    channel:
+      type: string
+      description: Where the order was placed.
+      enum:
+      - salesforce
+      - webshop
+      - agent
+    orderLinesChange:
+      type: object
+      description: The new order lines.
+      required:
+      - orderLines
+      properties:
+        orderLines:
+          type: array
+          minItems: 1
+          description: All order lines after the amendment.
+          items:
+            $ref: '#/components/schemas/orderLine'
+    requestedDeliveryDateChange:
+      type: object
+      description: The new requested delivery date.
+      required:
+      - requestedDeliveryDate
+      properties:
+        requestedDeliveryDate:
+          type: string
+          format: date
+          description: ISO 8601 date.
+    holdRequest:
+      type: object
+      description: Why the order is put on hold.
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 200
+          description: Why the order is held.
+    halLink:
+      type: object
+      description: A HAL link.
+      required:
+      - href
+      properties:
+        href:
+          type: string
+          description: URI relative to the API root.
+    order:
+      type: object
+      description: An order of the order domain.
+      required:
+      - _links
+      - orderId
+      - customerId
+      - channel
+      - status
+      - paymentStatus
+      - orderLines
+      - totalAmount
+      - deliveryAddress
+      - createdAt
+      - updatedAt
+      properties:
+        _links:
+          type: object
+          description: 'HAL links: self and the order''s sub-resources.'
+          required:
+          - self
+          properties:
+            self:
+              $ref: '#/components/schemas/halLink'
+            orderLines:
+              $ref: '#/components/schemas/halLink'
+            deliveryAddress:
+              $ref: '#/components/schemas/halLink'
+            hold:
+              $ref: '#/components/schemas/halLink'
+        orderId:
+          type: string
+          description: The order id.
+        customerId:
+          type: string
+          description: The customer who placed the order.
+        channel:
+          $ref: '#/components/schemas/channel'
+        status:
+          $ref: '#/components/schemas/orderStatus'
+        paymentStatus:
+          $ref: '#/components/schemas/paymentStatus'
+        orderLines:
+          type: array
+          description: The products ordered.
+          items:
+            $ref: '#/components/schemas/orderLine'
+        totalAmount:
+          $ref: '#/components/schemas/money'
+        deliveryAddress:
+          $ref: '#/components/schemas/deliveryAddress'
+        requestedDeliveryDate:
+          type: string
+          format: date
+          description: Requested delivery date. ISO 8601.
+        holdReason:
+          type: string
+          description: Why the order is on hold, when it is.
+        cancellationReason:
+          type: string
+          description: Why the order was cancelled, when it was.
+        createdAt:
+          type: string
+          format: date-time
+          description: When the order was placed. ISO 8601, UTC.
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the order last changed. ISO 8601, UTC.
+    orderList:
+      type: object
+      description: A page of orders (adidas pagination).
+      required:
+      - _links
+      - totalCount
+      - _embedded
+      properties:
+        _links:
+          type: object
+          description: self, first, last, and prev/next where they exist.
+          required:
+          - self
+          properties:
+            self:
+              $ref: '#/components/schemas/halLink'
+            first:
+              $ref: '#/components/schemas/halLink'
+            last:
+              $ref: '#/components/schemas/halLink'
+            prev:
+              $ref: '#/components/schemas/halLink'
+            next:
+              $ref: '#/components/schemas/halLink'
+        totalCount:
+          type: integer
+          minimum: 0
+          description: Number of orders matching the filter.
+        _embedded:
+          type: object
+          description: The orders on this page.
+          required:
+          - orders
+          properties:
+            orders:
+              type: array
+              description: The orders.
+              items:
+                $ref: '#/components/schemas/order'
+    problemDetail:
+      type: object
+      description: Problem Details for HTTP APIs (RFC 9457).
+      required:
+      - title
+      - detail
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI identifying the problem type.
+        title:
+          type: string
+          description: Short summary of the problem type.
+        status:
+          type: integer
+          description: The HTTP status code.
+        detail:
+          type: string
+          description: Explanation specific to this occurrence.
+        instance:
+          type: string
+          description: URI of the request that caused the problem.
+        errors:
+          type: array
+          description: Validation errors, each a problem detail.
+          items:
+            type: object
+            description: One validation error.
+            required:
+            - title
+            - detail
+            properties:
+              title:
+                type: string
+                description: Short summary.
+              detail:
+                type: string
+                description: What is wrong.

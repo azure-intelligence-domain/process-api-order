@@ -1,0 +1,1496 @@
+asyncapi: 2.6.0
+id: urn:azure-intelligence-domain:order:process-api-order
+info:
+  title: '[Order] Order Events'
+  version: 0.1.0
+  description: 'The business events of the order domain, published by the Order Process API to evgt-intplat-order.
+    Names are business facts in the past tense (Event Storming), never CRUD: an order is placed, confirmed, amended,
+    put on hold, cancelled, paid or shipped; it is never updated or deleted. Every event carries orderid and customerid
+    as business keys and the order''s journey as correlationid (ord-<orderId>). Version 0.x: designed, not implemented
+    yet.'
+  contact:
+    name: Order Domain Team
+    url: https://github.com/azure-intelligence-domain/process-api-order
+  license:
+    name: MIT
+    url: https://github.com/azure-intelligence-domain/process-api-order/blob/main/LICENSE
+tags:
+- name: order
+  description: Order domain.
+externalDocs:
+  description: EventCatalog entry of the order domain
+  url: https://azure-intelligence-domain.github.io/eventcatalog/docs/domains/order/1.0.0
+defaultContentType: application/cloudevents+json
+servers:
+  demo-event-grid:
+    $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/asyncapi/landscape.asyncapi.yaml#/components/servers/demo-event-grid
+channels:
+  order.process-api-order.event.order-placed:
+    description: 'A customer committed to an order: a Salesforce opportunity was closed-won, or a webshop or an
+      agent placed it. Carries the whole order, so consumers can keep their own copy.'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.placed
+    publish:
+      operationId: publishOrderPlaced
+      summary: Publish OrderPlaced.
+      description: 'The Order Process API publishes OrderPlaced when this fact happens: A customer committed to
+        an order: a Salesforce opportunity was closed-won, or a webshop or an agent placed it. Carries the whole
+        order, so consumers can keep their own copy.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderPlaced in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderPlaced
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderPlaced'
+  order.process-api-order.event.order-confirmed:
+    description: The ERP accepted the order (credit and availability checks passed). Triggered by the ERP's confirmation.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.confirmed
+    publish:
+      operationId: publishOrderConfirmed
+      summary: Publish OrderConfirmed.
+      description: 'The Order Process API publishes OrderConfirmed when this fact happens: The ERP accepted the
+        order (credit and availability checks passed). Triggered by the ERP''s confirmation.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderConfirmed in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderConfirmed
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderConfirmed'
+  order.process-api-order.event.order-rejected:
+    description: The ERP refused the order, for example a failed credit check. The order ends here.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.rejected
+    publish:
+      operationId: publishOrderRejected
+      summary: Publish OrderRejected.
+      description: 'The Order Process API publishes OrderRejected when this fact happens: The ERP refused the order,
+        for example a failed credit check. The order ends here.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderRejected in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderRejected
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderRejected'
+  order.process-api-order.event.order-amended:
+    description: The order lines changed (products or quantities) after the order was placed. Carries all lines
+      after the amendment.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.amended
+    publish:
+      operationId: publishOrderAmended
+      summary: Publish OrderAmended.
+      description: 'The Order Process API publishes OrderAmended when this fact happens: The order lines changed
+        (products or quantities) after the order was placed. Carries all lines after the amendment.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderAmended in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderAmended
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderAmended'
+  order.process-api-order.event.order-delivery-address-changed:
+    description: The order will be delivered to another address.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.deliveryAddressChanged
+    publish:
+      operationId: publishOrderDeliveryAddressChanged
+      summary: Publish OrderDeliveryAddressChanged.
+      description: 'The Order Process API publishes OrderDeliveryAddressChanged when this fact happens: The order
+        will be delivered to another address.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderDeliveryAddressChanged in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderDeliveryAddressChanged
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderDeliveryAddressChanged'
+  order.process-api-order.event.order-delivery-rescheduled:
+    description: The requested delivery date moved.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.deliveryRescheduled
+    publish:
+      operationId: publishOrderDeliveryRescheduled
+      summary: Publish OrderDeliveryRescheduled.
+      description: 'The Order Process API publishes OrderDeliveryRescheduled when this fact happens: The requested
+        delivery date moved.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderDeliveryRescheduled in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderDeliveryRescheduled
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderDeliveryRescheduled'
+  order.process-api-order.event.order-put-on-hold:
+    description: The order stopped progressing until it is released, for example during a credit approval.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.putOnHold
+    publish:
+      operationId: publishOrderPutOnHold
+      summary: Publish OrderPutOnHold.
+      description: 'The Order Process API publishes OrderPutOnHold when this fact happens: The order stopped progressing
+        until it is released, for example during a credit approval.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderPutOnHold in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderPutOnHold
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderPutOnHold'
+  order.process-api-order.event.order-released:
+    description: The hold was lifted; the order continues as confirmed.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.released
+    publish:
+      operationId: publishOrderReleased
+      summary: Publish OrderReleased.
+      description: 'The Order Process API publishes OrderReleased when this fact happens: The hold was lifted; the
+        order continues as confirmed.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderReleased in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderReleased
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderReleased'
+  order.process-api-order.event.order-cancelled:
+    description: 'The order was cancelled (a soft delete: the order keeps existing with status cancelled). Possible
+      while placed, confirmed or on hold.'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.cancelled
+    publish:
+      operationId: publishOrderCancelled
+      summary: Publish OrderCancelled.
+      description: 'The Order Process API publishes OrderCancelled when this fact happens: The order was cancelled
+        (a soft delete: the order keeps existing with status cancelled). Possible while placed, confirmed or on
+        hold.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderCancelled in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderCancelled
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderCancelled'
+  order.process-api-order.event.order-invoiced:
+    description: 'The order was invoiced. Triggered by finance''s InvoiceIssued (policy: when an invoice is issued
+      for an order, the order is invoiced).'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.invoiced
+    publish:
+      operationId: publishOrderInvoiced
+      summary: Publish OrderInvoiced.
+      description: 'The Order Process API publishes OrderInvoiced when this fact happens: The order was invoiced.
+        Triggered by finance''s InvoiceIssued (policy: when an invoice is issued for an order, the order is invoiced).'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderInvoiced in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderInvoiced
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderInvoiced'
+  order.process-api-order.event.order-paid:
+    description: 'The order is fully paid. Triggered by finance''s PaymentReceived (policy: when the received payments
+      cover the invoice, the order is paid).'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.paid
+    publish:
+      operationId: publishOrderPaid
+      summary: Publish OrderPaid.
+      description: 'The Order Process API publishes OrderPaid when this fact happens: The order is fully paid. Triggered
+        by finance''s PaymentReceived (policy: when the received payments cover the invoice, the order is paid).'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderPaid in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderPaid
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderPaid'
+  order.process-api-order.event.order-ready-for-shipment:
+    description: All stock for the order is reserved and it can be shipped. Triggered by supply's StockReserved.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.readyForShipment
+    publish:
+      operationId: publishOrderReadyForShipment
+      summary: Publish OrderReadyForShipment.
+      description: 'The Order Process API publishes OrderReadyForShipment when this fact happens: All stock for
+        the order is reserved and it can be shipped. Triggered by supply''s StockReserved.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderReadyForShipment in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderReadyForShipment
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderReadyForShipment'
+  order.process-api-order.event.order-shipped:
+    description: The order left the warehouse with the third-party logistics partner. Triggered by logistics' ShipmentDispatched.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.shipped
+    publish:
+      operationId: publishOrderShipped
+      summary: Publish OrderShipped.
+      description: 'The Order Process API publishes OrderShipped when this fact happens: The order left the warehouse
+        with the third-party logistics partner. Triggered by logistics'' ShipmentDispatched.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderShipped in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderShipped
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderShipped'
+  order.process-api-order.event.order-delivered:
+    description: The customer received the order. Triggered by logistics' ShipmentDelivered.
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.delivered
+    publish:
+      operationId: publishOrderDelivered
+      summary: Publish OrderDelivered.
+      description: 'The Order Process API publishes OrderDelivered when this fact happens: The customer received
+        the order. Triggered by logistics'' ShipmentDelivered.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderDelivered in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderDelivered
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderDelivered'
+  order.process-api-order.event.order-completed:
+    description: 'The order is delivered and paid: nothing is left to do. Triggered when the second of OrderDelivered
+      and OrderPaid happens.'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-order
+          eventType: com.acme.order.completed
+    publish:
+      operationId: publishOrderCompleted
+      summary: Publish OrderCompleted.
+      description: 'The Order Process API publishes OrderCompleted when this fact happens: The order is delivered
+        and paid: nothing is left to do. Triggered when the second of OrderDelivered and OrderPaid happens.'
+      security:
+      - entraIdEventGrid:
+        - https://eventgrid.azure.net/.default
+      tags:
+      - name: order
+        description: Order domain.
+      externalDocs:
+        description: OrderCompleted in EventCatalog
+        url: https://azure-intelligence-domain.github.io/eventcatalog/docs/events/orderCompleted
+      x-producers:
+        demo:
+        - process-api-order
+      message:
+        $ref: '#/components/messages/orderCompleted'
+components:
+  securitySchemes:
+    entraIdEventGrid:
+      $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/asyncapi/landscape.asyncapi.yaml#/components/securitySchemes/entraIdEventGrid
+  messages:
+    orderPlaced:
+      messageId: orderPlaced
+      name: orderPlaced
+      title: Order Placed
+      summary: 'A customer committed to an order: a Salesforce opportunity was closed-won, or a webshop or an agent
+        placed it.'
+      description: 'CloudEvent of type com.acme.order.placed. A customer committed to an order: a Salesforce opportunity
+        was closed-won, or a webshop or an agent placed it. Carries the whole order, so consumers can keep their
+        own copy.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.placed
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderPlacedData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderPlaced for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderPlaced-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.placed
+          time: '2026-10-03T09:12:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            customerId: ACME
+            channel: salesforce
+            orderLines:
+            - lineNumber: 1
+              productId: SKU-1042
+              quantity: 12
+              unitPrice: &id001
+                value: 7000.0
+                currency: EUR
+            totalAmount:
+              value: 84000.0
+              currency: EUR
+            deliveryAddress: &id002
+              street: Rue de la Loi 16
+              postalCode: '1000'
+              city: Brussels
+              countryCode: BE
+            requestedDeliveryDate: '2026-10-09'
+            placedAt: '2026-10-03T09:12:00Z'
+    orderConfirmed:
+      messageId: orderConfirmed
+      name: orderConfirmed
+      title: Order Confirmed
+      summary: The ERP accepted the order (credit and availability checks passed).
+      description: CloudEvent of type com.acme.order.confirmed. The ERP accepted the order (credit and availability
+        checks passed). Triggered by the ERP's confirmation.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.confirmed
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderConfirmedData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderConfirmed for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderConfirmed-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.confirmed
+          time: '2026-10-03T09:15:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            erpOrderNumber: '8000043217'
+            confirmedAt: '2026-10-03T09:15:00Z'
+    orderRejected:
+      messageId: orderRejected
+      name: orderRejected
+      title: Order Rejected
+      summary: The ERP refused the order, for example a failed credit check.
+      description: CloudEvent of type com.acme.order.rejected. The ERP refused the order, for example a failed credit
+        check. The order ends here.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.rejected
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderRejectedData'
+      examples:
+      - name: acmeOrder4712
+        summary: OrderRejected for ACME's order 4712.
+        payload:
+          specversion: '1.0'
+          id: orderRejected-4712-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.rejected
+          time: '2026-10-03T09:20:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4712
+          customerid: ACME
+          orderid: '4712'
+          data:
+            orderId: '4712'
+            reason: Credit check failed.
+            rejectedAt: '2026-10-03T09:20:00Z'
+    orderAmended:
+      messageId: orderAmended
+      name: orderAmended
+      title: Order Amended
+      summary: The order lines changed (products or quantities) after the order was placed.
+      description: CloudEvent of type com.acme.order.amended. The order lines changed (products or quantities) after
+        the order was placed. Carries all lines after the amendment.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.amended
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderAmendedData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderAmended for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderAmended-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.amended
+          time: '2026-10-03T11:00:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            orderLines:
+            - lineNumber: 1
+              productId: SKU-1042
+              quantity: 12
+              unitPrice: *id001
+            totalAmount:
+              value: 84000.0
+              currency: EUR
+            amendedAt: '2026-10-03T11:00:00Z'
+    orderDeliveryAddressChanged:
+      messageId: orderDeliveryAddressChanged
+      name: orderDeliveryAddressChanged
+      title: Order Delivery Address Changed
+      summary: The order will be delivered to another address.
+      description: CloudEvent of type com.acme.order.deliveryAddressChanged. The order will be delivered to another
+        address.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.deliveryAddressChanged
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderDeliveryAddressChangedData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderDeliveryAddressChanged for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderDeliveryAddressChanged-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.deliveryAddressChanged
+          time: '2026-10-04T08:00:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            deliveryAddress: *id002
+            changedAt: '2026-10-04T08:00:00Z'
+    orderDeliveryRescheduled:
+      messageId: orderDeliveryRescheduled
+      name: orderDeliveryRescheduled
+      title: Order Delivery Rescheduled
+      summary: The requested delivery date moved.
+      description: CloudEvent of type com.acme.order.deliveryRescheduled. The requested delivery date moved.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.deliveryRescheduled
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderDeliveryRescheduledData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderDeliveryRescheduled for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderDeliveryRescheduled-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.deliveryRescheduled
+          time: '2026-10-04T08:05:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            requestedDeliveryDate: '2026-10-09'
+            previousRequestedDeliveryDate: '2026-10-08'
+            rescheduledAt: '2026-10-04T08:05:00Z'
+    orderPutOnHold:
+      messageId: orderPutOnHold
+      name: orderPutOnHold
+      title: Order Put On Hold
+      summary: The order stopped progressing until it is released, for example during a credit approval.
+      description: CloudEvent of type com.acme.order.putOnHold. The order stopped progressing until it is released,
+        for example during a credit approval.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.putOnHold
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderPutOnHoldData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderPutOnHold for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderPutOnHold-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.putOnHold
+          time: '2026-10-04T09:00:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            reason: Credit limit exceeded, awaiting approval.
+            heldAt: '2026-10-04T09:00:00Z'
+    orderReleased:
+      messageId: orderReleased
+      name: orderReleased
+      title: Order Released
+      summary: The hold was lifted; the order continues as confirmed.
+      description: CloudEvent of type com.acme.order.released. The hold was lifted; the order continues as confirmed.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.released
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderReleasedData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderReleased for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderReleased-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.released
+          time: '2026-10-04T15:30:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            releasedAt: '2026-10-04T15:30:00Z'
+    orderCancelled:
+      messageId: orderCancelled
+      name: orderCancelled
+      title: Order Cancelled
+      summary: 'The order was cancelled (a soft delete: the order keeps existing with status cancelled).'
+      description: 'CloudEvent of type com.acme.order.cancelled. The order was cancelled (a soft delete: the order
+        keeps existing with status cancelled). Possible while placed, confirmed or on hold.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.cancelled
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderCancelledData'
+      examples:
+      - name: acmeOrder4713
+        summary: OrderCancelled for ACME's order 4713.
+        payload:
+          specversion: '1.0'
+          id: orderCancelled-4713-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.cancelled
+          time: '2026-10-04T10:00:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4713
+          customerid: ACME
+          orderid: '4713'
+          data:
+            orderId: '4713'
+            reason: Customer withdrew the order.
+            cancelledAt: '2026-10-04T10:00:00Z'
+    orderInvoiced:
+      messageId: orderInvoiced
+      name: orderInvoiced
+      title: Order Invoiced
+      summary: The order was invoiced.
+      description: 'CloudEvent of type com.acme.order.invoiced. The order was invoiced. Triggered by finance''s
+        InvoiceIssued (policy: when an invoice is issued for an order, the order is invoiced).'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.invoiced
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderInvoicedData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderInvoiced for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderInvoiced-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.invoiced
+          time: '2026-10-03T16:00:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            invoiceNumber: INV-2026-10-0815
+            invoicedAt: '2026-10-03T16:00:00Z'
+    orderPaid:
+      messageId: orderPaid
+      name: orderPaid
+      title: Order Paid
+      summary: The order is fully paid.
+      description: 'CloudEvent of type com.acme.order.paid. The order is fully paid. Triggered by finance''s PaymentReceived
+        (policy: when the received payments cover the invoice, the order is paid).'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.paid
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderPaidData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderPaid for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderPaid-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.paid
+          time: '2026-10-05T10:40:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            paidAmount:
+              value: 84000.0
+              currency: EUR
+            paidAt: '2026-10-05T10:40:00Z'
+    orderReadyForShipment:
+      messageId: orderReadyForShipment
+      name: orderReadyForShipment
+      title: Order Ready For Shipment
+      summary: All stock for the order is reserved and it can be shipped.
+      description: CloudEvent of type com.acme.order.readyForShipment. All stock for the order is reserved and it
+        can be shipped. Triggered by supply's StockReserved.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.readyForShipment
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderReadyForShipmentData'
+      examples:
+      - name: acmeOrder4711
+        summary: OrderReadyForShipment for ACME's order 4711.
+        payload:
+          specversion: '1.0'
+          id: orderReadyForShipment-4711-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.readyForShipment
+          time: '2026-10-07T14:02:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4711
+          customerid: ACME
+          orderid: '4711'
+          data:
+            orderId: '4711'
+            warehouseId: BRU-01
+            readyAt: '2026-10-07T14:02:00Z'
+    orderShipped:
+      messageId: orderShipped
+      name: orderShipped
+      title: Order Shipped
+      summary: The order left the warehouse with the third-party logistics partner.
+      description: CloudEvent of type com.acme.order.shipped. The order left the warehouse with the third-party
+        logistics partner. Triggered by logistics' ShipmentDispatched.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.shipped
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderShippedData'
+      examples:
+      - name: acmeOrder4710
+        summary: OrderShipped for ACME's order 4710.
+        payload:
+          specversion: '1.0'
+          id: orderShipped-4710-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.shipped
+          time: '2026-10-06T07:30:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4710
+          customerid: ACME
+          orderid: '4710'
+          data:
+            orderId: '4710'
+            shipmentId: SHP-552190
+            shippedAt: '2026-10-06T07:30:00Z'
+    orderDelivered:
+      messageId: orderDelivered
+      name: orderDelivered
+      title: Order Delivered
+      summary: The customer received the order.
+      description: CloudEvent of type com.acme.order.delivered. The customer received the order. Triggered by logistics'
+        ShipmentDelivered.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.delivered
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderDeliveredData'
+      examples:
+      - name: acmeOrder4710
+        summary: OrderDelivered for ACME's order 4710.
+        payload:
+          specversion: '1.0'
+          id: orderDelivered-4710-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.delivered
+          time: '2026-10-08T11:20:01Z'
+          datacontenttype: application/json
+          correlationid: ord-4710
+          customerid: ACME
+          orderid: '4710'
+          data:
+            orderId: '4710'
+            deliveredAt: '2026-10-08T11:20:00Z'
+    orderCompleted:
+      messageId: orderCompleted
+      name: orderCompleted
+      title: Order Completed
+      summary: 'The order is delivered and paid: nothing is left to do.'
+      description: 'CloudEvent of type com.acme.order.completed. The order is delivered and paid: nothing is left
+        to do. Triggered when the second of OrderDelivered and OrderPaid happens.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: https://raw.githubusercontent.com/azure-intelligence-domain/contracts/v1.2.0/schemas/envelope/1.1.0/envelope.schema.json
+        - type: object
+          description: What this event adds to the envelope.
+          required:
+          - type
+          - orderid
+          - customerid
+          - data
+          properties:
+            type:
+              const: com.acme.order.completed
+            orderid:
+              type: string
+            customerid:
+              type: string
+            data:
+              $ref: '#/components/schemas/orderCompletedData'
+      examples:
+      - name: acmeOrder4710
+        summary: OrderCompleted for ACME's order 4710.
+        payload:
+          specversion: '1.0'
+          id: orderCompleted-4710-0001
+          source: /process-api-order/0.1.0
+          type: com.acme.order.completed
+          time: '2026-10-08T11:20:03Z'
+          datacontenttype: application/json
+          correlationid: ord-4710
+          customerid: ACME
+          orderid: '4710'
+          data:
+            orderId: '4710'
+            completedAt: '2026-10-08T11:20:02Z'
+  schemas:
+    channel:
+      type: string
+      description: Where the order was placed.
+      enum:
+      - salesforce
+      - webshop
+      - agent
+    money:
+      type: object
+      description: An amount of money.
+      required:
+      - value
+      - currency
+      properties:
+        value:
+          type: number
+          description: The amount.
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          description: ISO 4217 currency code.
+    deliveryAddress:
+      type: object
+      description: Where the order is delivered.
+      required:
+      - street
+      - postalCode
+      - city
+      - countryCode
+      properties:
+        street:
+          type: string
+          description: Street and number.
+        postalCode:
+          type: string
+          description: Postal code.
+        city:
+          type: string
+          description: City.
+        countryCode:
+          type: string
+          pattern: ^[A-Z]{2}$
+          description: ISO 3166-1 alpha-2 country code.
+    orderLine:
+      type: object
+      description: One product in the order.
+      required:
+      - lineNumber
+      - productId
+      - quantity
+      - unitPrice
+      properties:
+        lineNumber:
+          type: integer
+          minimum: 1
+          description: Position in the order.
+        productId:
+          type: string
+          description: The product.
+        quantity:
+          type: integer
+          minimum: 1
+          description: Units ordered.
+        unitPrice:
+          $ref: '#/components/schemas/money'
+    orderPlacedData:
+      type: object
+      description: What OrderPlaced says.
+      required:
+      - orderId
+      - customerId
+      - channel
+      - orderLines
+      - totalAmount
+      - deliveryAddress
+      - placedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        customerId:
+          type: string
+          description: The customer.
+        channel:
+          $ref: '#/components/schemas/channel'
+        orderLines:
+          type: array
+          minItems: 1
+          description: The products ordered.
+          items:
+            $ref: '#/components/schemas/orderLine'
+        totalAmount:
+          $ref: '#/components/schemas/money'
+        deliveryAddress:
+          $ref: '#/components/schemas/deliveryAddress'
+        requestedDeliveryDate:
+          type: string
+          format: date
+          description: Requested delivery date. ISO 8601.
+        placedAt:
+          type: string
+          format: date-time
+          description: When the order was placed. ISO 8601, UTC.
+    orderConfirmedData:
+      type: object
+      description: What OrderConfirmed says.
+      required:
+      - orderId
+      - confirmedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        erpOrderNumber:
+          type: string
+          description: The order number in the ERP.
+        confirmedAt:
+          type: string
+          format: date-time
+          description: When the ERP confirmed. ISO 8601, UTC.
+    orderRejectedData:
+      type: object
+      description: What OrderRejected says.
+      required:
+      - orderId
+      - reason
+      - rejectedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        reason:
+          type: string
+          description: Why the order was rejected.
+        rejectedAt:
+          type: string
+          format: date-time
+          description: When it was rejected. ISO 8601, UTC.
+    orderAmendedData:
+      type: object
+      description: What OrderAmended says.
+      required:
+      - orderId
+      - orderLines
+      - totalAmount
+      - amendedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        orderLines:
+          type: array
+          minItems: 1
+          description: All order lines after the amendment.
+          items:
+            $ref: '#/components/schemas/orderLine'
+        totalAmount:
+          $ref: '#/components/schemas/money'
+        amendedAt:
+          type: string
+          format: date-time
+          description: When the order was amended. ISO 8601, UTC.
+    orderDeliveryAddressChangedData:
+      type: object
+      description: What OrderDeliveryAddressChanged says.
+      required:
+      - orderId
+      - deliveryAddress
+      - changedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        deliveryAddress:
+          $ref: '#/components/schemas/deliveryAddress'
+        changedAt:
+          type: string
+          format: date-time
+          description: When the address changed. ISO 8601, UTC.
+    orderDeliveryRescheduledData:
+      type: object
+      description: What OrderDeliveryRescheduled says.
+      required:
+      - orderId
+      - requestedDeliveryDate
+      - rescheduledAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        requestedDeliveryDate:
+          type: string
+          format: date
+          description: The new requested delivery date. ISO 8601.
+        previousRequestedDeliveryDate:
+          type: string
+          format: date
+          description: The date before the change. ISO 8601.
+        rescheduledAt:
+          type: string
+          format: date-time
+          description: When the delivery was rescheduled. ISO 8601, UTC.
+    orderPutOnHoldData:
+      type: object
+      description: What OrderPutOnHold says.
+      required:
+      - orderId
+      - reason
+      - heldAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        reason:
+          type: string
+          description: Why the order is held.
+        heldAt:
+          type: string
+          format: date-time
+          description: When the order was put on hold. ISO 8601, UTC.
+    orderReleasedData:
+      type: object
+      description: What OrderReleased says.
+      required:
+      - orderId
+      - releasedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        releasedAt:
+          type: string
+          format: date-time
+          description: When the hold was lifted. ISO 8601, UTC.
+    orderCancelledData:
+      type: object
+      description: What OrderCancelled says.
+      required:
+      - orderId
+      - reason
+      - cancelledAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        reason:
+          type: string
+          description: Why the order was cancelled.
+        cancelledAt:
+          type: string
+          format: date-time
+          description: When the order was cancelled. ISO 8601, UTC.
+    orderInvoicedData:
+      type: object
+      description: What OrderInvoiced says.
+      required:
+      - orderId
+      - invoiceNumber
+      - invoicedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        invoiceNumber:
+          type: string
+          description: The finance invoice number.
+        invoicedAt:
+          type: string
+          format: date-time
+          description: When the order was invoiced. ISO 8601, UTC.
+    orderPaidData:
+      type: object
+      description: What OrderPaid says.
+      required:
+      - orderId
+      - paidAmount
+      - paidAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        paidAmount:
+          $ref: '#/components/schemas/money'
+        paidAt:
+          type: string
+          format: date-time
+          description: When the order became fully paid. ISO 8601, UTC.
+    orderReadyForShipmentData:
+      type: object
+      description: What OrderReadyForShipment says.
+      required:
+      - orderId
+      - warehouseId
+      - readyAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        warehouseId:
+          type: string
+          description: The warehouse holding the stock.
+        readyAt:
+          type: string
+          format: date-time
+          description: When the order became ready for shipment. ISO 8601, UTC.
+    orderShippedData:
+      type: object
+      description: What OrderShipped says.
+      required:
+      - orderId
+      - shipmentId
+      - shippedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        shipmentId:
+          type: string
+          description: The 3PL shipment.
+        shippedAt:
+          type: string
+          format: date-time
+          description: When the order was shipped. ISO 8601, UTC.
+    orderDeliveredData:
+      type: object
+      description: What OrderDelivered says.
+      required:
+      - orderId
+      - deliveredAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        deliveredAt:
+          type: string
+          format: date-time
+          description: When the order was delivered. ISO 8601, UTC.
+    orderCompletedData:
+      type: object
+      description: What OrderCompleted says.
+      required:
+      - orderId
+      - completedAt
+      properties:
+        orderId:
+          type: string
+          description: The order id.
+        completedAt:
+          type: string
+          format: date-time
+          description: When the order was completed. ISO 8601, UTC.

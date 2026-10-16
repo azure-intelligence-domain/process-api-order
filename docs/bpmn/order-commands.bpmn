@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_OrderCommands" targetNamespace="https://github.com/azure-intelligence-domain/process-api-order">
+  <bpmn:collaboration id="Collaboration_OrderCommands">
+    <bpmn:participant id="Participant_OrderCommands" name="Order commands: place, amend, change address, reschedule, hold, release, cancel" processRef="OrderCommands" />
+  </bpmn:collaboration>
+  <bpmn:process id="OrderCommands" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_OrderCommands">
+      <bpmn:lane id="Lane_Gateway" name="API Management">
+        <bpmn:flowNodeRef>Start_Call</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Valid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Invalid</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Process" name="Order Process API">
+        <bpmn:flowNodeRef>Gateway_Allowed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Conflict</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Done</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_System" name="Salesforce System API">
+        <bpmn:flowNodeRef>Task_Load</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Save</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Events" name="Event Grid · tap">
+        <bpmn:flowNodeRef>Task_Tap</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_Business</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_Call" name="Command with Correlation-Id">
+      <bpmn:outgoing>Flow_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Start_Call" />
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_Valid" name="Correlation-Id (and agent token) valid?">
+      <bpmn:incoming>Flow_0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Invalid" name="400 / 401 Problem">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="Task_Tap" name="Tap the mutation (gateway mutation or agent action)">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="Task_Load" name="Load order">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Allowed" name="Allowed in current status?">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Conflict" name="409 Order State Conflict">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_Save" name="Save new status and data">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="Event_Business" name="Business event, e.g. OrderCancelled">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Event_Business" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="End_Done" name="200 / 201 order">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0" name="" sourceRef="Start_Call" targetRef="Gateway_Valid" />
+    <bpmn:sequenceFlow id="Flow_1" name="no" sourceRef="Gateway_Valid" targetRef="End_Invalid" />
+    <bpmn:sequenceFlow id="Flow_2" name="yes" sourceRef="Gateway_Valid" targetRef="Task_Tap" />
+    <bpmn:sequenceFlow id="Flow_3" name="" sourceRef="Task_Tap" targetRef="Task_Load" />
+    <bpmn:sequenceFlow id="Flow_4" name="" sourceRef="Task_Load" targetRef="Gateway_Allowed" />
+    <bpmn:sequenceFlow id="Flow_5" name="no" sourceRef="Gateway_Allowed" targetRef="End_Conflict" />
+    <bpmn:sequenceFlow id="Flow_6" name="yes" sourceRef="Gateway_Allowed" targetRef="Task_Save" />
+    <bpmn:sequenceFlow id="Flow_7" name="" sourceRef="Task_Save" targetRef="Event_Business" />
+    <bpmn:sequenceFlow id="Flow_8" name="" sourceRef="Event_Business" targetRef="End_Done" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_OrderCommands">
+    <bpmndi:BPMNPlane id="Plane_OrderCommands" bpmnElement="Collaboration_OrderCommands">
+      <bpmndi:BPMNShape id="Participant_OrderCommands_di" bpmnElement="Participant_OrderCommands" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="1560" height="480" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Gateway_di" bpmnElement="Lane_Gateway" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="1530" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Process_di" bpmnElement="Lane_Process" isHorizontal="true">
+        <dc:Bounds x="130" y="180" width="1530" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_System_di" bpmnElement="Lane_System" isHorizontal="true">
+        <dc:Bounds x="130" y="300" width="1530" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Events_di" bpmnElement="Lane_Events" isHorizontal="true">
+        <dc:Bounds x="130" y="420" width="1530" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_Call_di" bpmnElement="Start_Call">
+        <dc:Bounds x="212" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="162" y="142" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Valid_di" bpmnElement="Gateway_Valid" isMarkerVisible="true">
+        <dc:Bounds x="375" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="325" y="149" width="150" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Invalid_di" bpmnElement="End_Invalid">
+        <dc:Bounds x="552" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="502" y="142" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Tap_di" bpmnElement="Task_Tap">
+        <dc:Bounds x="505" y="440" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Load_di" bpmnElement="Task_Load">
+        <dc:Bounds x="675" y="320" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Allowed_di" bpmnElement="Gateway_Allowed" isMarkerVisible="true">
+        <dc:Bounds x="885" y="215" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="835" y="269" width="150" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Conflict_di" bpmnElement="End_Conflict">
+        <dc:Bounds x="1062" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1012" y="262" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Save_di" bpmnElement="Task_Save">
+        <dc:Bounds x="1015" y="320" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_Business_di" bpmnElement="Event_Business">
+        <dc:Bounds x="1232" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1182" y="502" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Done_di" bpmnElement="End_Done">
+        <dc:Bounds x="1402" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1352" y="262" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0_di" bpmnElement="Flow_0">
+        <di:waypoint x="248" y="120" />
+        <di:waypoint x="375" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="425" y="120" />
+        <di:waypoint x="552" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="468" y="102" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="425" y="120" />
+        <di:waypoint x="465" y="120" />
+        <di:waypoint x="465" y="480" />
+        <di:waypoint x="505" y="480" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="465" y="462" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="635" y="480" />
+        <di:waypoint x="655" y="480" />
+        <di:waypoint x="655" y="360" />
+        <di:waypoint x="675" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="805" y="360" />
+        <di:waypoint x="845" y="360" />
+        <di:waypoint x="845" y="240" />
+        <di:waypoint x="885" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="935" y="240" />
+        <di:waypoint x="1062" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="978" y="222" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <di:waypoint x="935" y="240" />
+        <di:waypoint x="975" y="240" />
+        <di:waypoint x="975" y="360" />
+        <di:waypoint x="1015" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="975" y="342" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7">
+        <di:waypoint x="1145" y="360" />
+        <di:waypoint x="1188" y="360" />
+        <di:waypoint x="1188" y="480" />
+        <di:waypoint x="1232" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8">
+        <di:waypoint x="1268" y="480" />
+        <di:waypoint x="1335" y="480" />
+        <di:waypoint x="1335" y="240" />
+        <di:waypoint x="1402" y="240" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

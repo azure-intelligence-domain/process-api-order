@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_OrderQueries" targetNamespace="https://github.com/azure-intelligence-domain/process-api-order">
+  <bpmn:collaboration id="Collaboration_OrderQueries">
+    <bpmn:participant id="Participant_OrderQueries" name="Order queries: retrieve order, retrieve list of orders" processRef="OrderQueries" />
+  </bpmn:collaboration>
+  <bpmn:process id="OrderQueries" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_OrderQueries">
+      <bpmn:lane id="Lane_Gateway" name="API Management">
+        <bpmn:flowNodeRef>Start_Call</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Valid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Invalid</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Process" name="Order Process API">
+        <bpmn:flowNodeRef>End_Answer</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_System" name="Salesforce System API">
+        <bpmn:flowNodeRef>Task_Read</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Events" name="Event Grid · tap">
+        <bpmn:flowNodeRef>Task_Tap</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_Call" name="Query with Correlation-Id">
+      <bpmn:outgoing>Flow_0</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Message_Start_Call" />
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_Valid" name="Correlation-Id (and agent token) valid?">
+      <bpmn:incoming>Flow_0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Invalid" name="400 / 401 Problem">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="Task_Tap" name="Tap the query with orderid / customerid">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="Task_Read" name="Read order or page of orders">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_Answer" name="200 order or page">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0" name="" sourceRef="Start_Call" targetRef="Gateway_Valid" />
+    <bpmn:sequenceFlow id="Flow_1" name="no" sourceRef="Gateway_Valid" targetRef="End_Invalid" />
+    <bpmn:sequenceFlow id="Flow_2" name="yes" sourceRef="Gateway_Valid" targetRef="Task_Tap" />
+    <bpmn:sequenceFlow id="Flow_3" name="" sourceRef="Task_Tap" targetRef="Task_Read" />
+    <bpmn:sequenceFlow id="Flow_4" name="" sourceRef="Task_Read" targetRef="End_Answer" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_OrderQueries">
+    <bpmndi:BPMNPlane id="Plane_OrderQueries" bpmnElement="Collaboration_OrderQueries">
+      <bpmndi:BPMNShape id="Participant_OrderQueries_di" bpmnElement="Participant_OrderQueries" isHorizontal="true">
+        <dc:Bounds x="100" y="60" width="1050" height="480" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Gateway_di" bpmnElement="Lane_Gateway" isHorizontal="true">
+        <dc:Bounds x="130" y="60" width="1020" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Process_di" bpmnElement="Lane_Process" isHorizontal="true">
+        <dc:Bounds x="130" y="180" width="1020" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_System_di" bpmnElement="Lane_System" isHorizontal="true">
+        <dc:Bounds x="130" y="300" width="1020" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Events_di" bpmnElement="Lane_Events" isHorizontal="true">
+        <dc:Bounds x="130" y="420" width="1020" height="120" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_Call_di" bpmnElement="Start_Call">
+        <dc:Bounds x="212" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="162" y="142" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Valid_di" bpmnElement="Gateway_Valid" isMarkerVisible="true">
+        <dc:Bounds x="375" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="325" y="149" width="150" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Invalid_di" bpmnElement="End_Invalid">
+        <dc:Bounds x="552" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="502" y="142" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Tap_di" bpmnElement="Task_Tap">
+        <dc:Bounds x="505" y="440" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Read_di" bpmnElement="Task_Read">
+        <dc:Bounds x="675" y="320" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Answer_di" bpmnElement="End_Answer">
+        <dc:Bounds x="892" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="842" y="262" width="136" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0_di" bpmnElement="Flow_0">
+        <di:waypoint x="248" y="120" />
+        <di:waypoint x="375" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="425" y="120" />
+        <di:waypoint x="552" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="468" y="102" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="425" y="120" />
+        <di:waypoint x="465" y="120" />
+        <di:waypoint x="465" y="480" />
+        <di:waypoint x="505" y="480" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="465" y="462" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="635" y="480" />
+        <di:waypoint x="655" y="480" />
+        <di:waypoint x="655" y="360" />
+        <di:waypoint x="675" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="805" y="360" />
+        <di:waypoint x="848" y="360" />
+        <di:waypoint x="848" y="240" />
+        <di:waypoint x="892" y="240" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
