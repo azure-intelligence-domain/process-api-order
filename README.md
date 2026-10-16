@@ -15,6 +15,110 @@ the **order domain team**. Decision:
 
 Both contracts follow the adidas API guidelines and pass the platform's contract check.
 
+## How it works: the brain and the hands
+
+The **Order Process API** (Azure Function, Python) is the brain: it owns the order, its status
+and its facts. **Logic Apps** are the hands: integration flows that move data between systems
+(mapping, calls). They never call each other: they react to events, and they reach systems only
+through the gateway ([ADR 0014](https://github.com/azure-intelligence-domain/ai-intelligence-domain/blob/main/docs/adr/0014-process-layer-split.md)).
+
+```mermaid
+flowchart LR
+    subgraph callers["Callers"]
+        people["People / websites"]
+        agents["AI agents"]
+    end
+    subgraph gw["API Management"]
+        apimH{{"apim-intplat-demo"}}
+        apimA{{"apim-intplat-agents"}}
+    end
+    subgraph order["Order domain · the brain"]
+        papi["Order Process API<br/>Function (Python)<br/>commands · queries · state machine<br/>idempotency · 409 · envelope"]
+        qOrder[("sbq-process-api-order<br/>facts from other domains")]
+    end
+    subgraph topics["Event Grid"]
+        tOrder[["evgt-intplat-order<br/>OrderPlaced · OrderConfirmed · ..."]]
+        tFin[["evgt-intplat-finance<br/>SalesOrderAccepted · InvoiceIssued · PaymentReceived"]]
+        tSup[["evgt-intplat-supply<br/>StockReserved"]]
+        tLog[["evgt-intplat-logistics<br/>ShipmentDispatched · ShipmentDelivered"]]
+    end
+    subgraph flows["Integration flows · the hands · Logic Apps"]
+        la1["order-to-erp<br/>on OrderPlaced, OrderAmended,<br/>OrderCancelled ..."]
+        la2["order-to-warehouse<br/>on OrderConfirmed"]
+        la3["stock-to-3pl<br/>on StockReserved"]
+    end
+    subgraph sys["System APIs · Functions"]
+        sSf["Salesforce System API"]
+        sSap["SAP System API"]
+        sWms["WMS System API"]
+        s3pl["3PL System API"]
+    end
+    subgraph src["Source systems"]
+        dbSf[("Salesforce<br/>system of record: orders")]
+        dbSap[("SAP")]
+        dbWms[("WMS")]
+        p3pl["3PL partner API"]
+    end
+
+    people --> apimH --> papi
+    agents --> apimA --> papi
+    papi -- "via gateway" --> sSf --> dbSf
+    papi -- "publish" --> tOrder
+    tOrder --> la1 & la2
+    la1 -- "via gateway" --> sSap --> dbSap
+    la2 -- "via gateway" --> sWms --> dbWms
+    sSap -- "publish" --> tFin
+    sWms -- "publish" --> tSup
+    tSup --> la3
+    la3 -- "via gateway" --> s3pl --> p3pl
+    s3pl -- "publish" --> tLog
+    tFin & tSup & tLog --> qOrder --> papi
+```
+
+| | Order Process API (Function) | Logic Apps |
+|---|---|---|
+| Role | Decides: owns the order, its status and its facts | Moves data between systems |
+| Triggered by | Commands via the gateways; facts from other domains via its own queue | Order events via their own queue |
+| Publishes | The 15 order events | Nothing of its own: the System API behind it publishes the fact |
+| Fails how | Command refused (409 / 400) | Message in the flow's own dead-letter queue |
+
+### ACME's order 4711 through it
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SR as Sales rep
+    participant P as Order Process API (Function)
+    participant EO as evgt-intplat-order
+    participant L1 as order-to-erp (Logic App)
+    participant SAP as SAP System API
+    participant EF as evgt-intplat-finance
+    participant L2 as order-to-warehouse (Logic App)
+    participant WMS as WMS System API
+    participant ES as evgt-intplat-supply
+    participant L3 as stock-to-3pl (Logic App)
+    participant TPL as 3PL System API
+
+    SR->>P: Place Order (via gateway)
+    P->>P: validate, idempotency, status = placed
+    P->>EO: OrderPlaced
+    EO->>L1: OrderPlaced (own queue)
+    L1->>SAP: Create sales order (mapping)
+    SAP->>EF: SalesOrderAccepted
+    EF->>P: policy: ERP accepted
+    P->>EO: OrderConfirmed
+    EO->>L2: OrderConfirmed (own queue)
+    L2->>WMS: Reserve stock (mapping)
+    WMS->>ES: StockReserved
+    ES->>P: policy: stock reserved
+    P->>EO: OrderReadyForShipment
+    ES->>L3: StockReserved (own queue)
+    L3->>TPL: Shipment request (mapping v2.4)
+    TPL--xL3: 400 schema mismatch
+    L3->>L3: retries exhausted → dead-letter queue
+    Note over P,TPL: The order stays readyForShipment: no OrderShipped ever comes. The tap saw every hop.
+```
+
 ## Language: business facts, not CRUD
 
 Events are named after what happened in the business (Event Storming), in the past tense. An order
