@@ -297,8 +297,78 @@ def test_refused_by_sap(sf, topic):
 def test_a_fact_that_does_not_fit_is_ignored_not_retried(sf, topic):
     placed(sf, topic)
     do(api.cancel, sf, topic, "DELETE", params={"reason": "Withdrawn."})
-    status, body = deliver(sf, topic, *RESERVED)
+    status, body = deliver(sf, topic, *DISPATCHED)
     assert status == 200 and "cancelled" in body["ignored"]
+
+
+BOOKED = ("com.acme.logistics.shipmentBooked", {"orderId": "4711", "shipmentId": "SPD-004711", "partnerId": "speedy-3pl",
+          "trackingNumber": "SPD4711BE", "bookedAt": "2026-10-16T10:01:30Z"})
+
+
+def test_the_timeline_and_references(sf, topic):
+    placed(sf, topic)
+    for fact in (ACCEPTED, INVOICED, RESERVED, BOOKED):
+        deliver(sf, topic, *fact)
+    order = sf.orders["4711"]
+    assert [(m["fact"], m["domain"]) for m in order["timeline"]] == [
+        ("OrderPlaced", "order"), ("SalesOrderAccepted", "finance"), ("OrderConfirmed", "order"), ("InvoiceIssued", "finance"),
+        ("OrderInvoiced", "order"), ("StockReserved", "supply"), ("OrderReadyForShipment", "order"), ("ShipmentBooked", "logistics")]
+    assert order["references"] == {"erpOrderNumber": "8000043217", "invoiceNumber": "90004711", "reservationId": "RSV-4711",
+                                   "warehouseId": "BRU-1", "shipmentId": "SPD-004711", "trackingNumber": "SPD4711BE", "partnerId": "speedy-3pl"}
+    assert order["status"] == "readyForShipment"  # booked is not shipped: the partner reports the pick-up
+    assert "ignored" in deliver(sf, topic, *BOOKED)[1]  # a redelivered fact changes nothing
+
+
+def test_cancelling_while_ready_tells_every_domain_what_to_undo(sf, topic):
+    placed(sf, topic)
+    for fact in (ACCEPTED, INVOICED, RESERVED, BOOKED):
+        deliver(sf, topic, *fact)
+    response, cancelled = do(api.cancel, sf, topic, "DELETE", params={"reason": "Customer changed their mind."})
+    assert response.status_code == 200 and cancelled["status"] == "cancelled"
+    data = topic.events[-1][2]
+    assert topic.events[-1][0] == "OrderCancelled"
+    assert (data["erpOrderNumber"], data["reservationId"], data["shipmentId"]) == ("8000043217", "RSV-4711", "SPD-004711")
+    for fact in (("com.acme.finance.salesOrderCancelled", {"orderId": "4711", "erpOrderNumber": "8000043217", "reason": "x",
+                  "invoiceNumber": "90004711", "creditNoteNumber": "70004711", "cancelledAt": "2026-10-16T10:05:00Z"}),
+                 ("com.acme.supply.stockReleased", {"orderId": "4711", "reservationId": "RSV-4711", "warehouseId": "BRU-1",
+                  "orderLines": [], "releasedAt": "2026-10-16T10:05:00Z"}),
+                 ("com.acme.logistics.shipmentCancelled", {"orderId": "4711", "shipmentId": "SPD-004711", "partnerId": "speedy-3pl",
+                  "cancelledAt": "2026-10-16T10:05:00Z"})):
+        status, body = deliver(sf, topic, *fact)
+        assert status == 200 and body == {"applied": []}  # recorded, no new order fact
+    order = sf.orders["4711"]
+    assert order["references"]["creditNoteNumber"] == "70004711"
+    assert [m["fact"] for m in order["timeline"]][-4:] == ["OrderCancelled", "SalesOrderCancelled", "StockReleased", "ShipmentCancelled"]
+
+
+def test_a_late_fact_on_a_cancelled_order_is_recorded(sf, topic):
+    """Cancelled while the WMS was reserving: the reservation is remembered (ADR 0018: the known race)."""
+    placed(sf, topic)
+    deliver(sf, topic, *ACCEPTED)
+    do(api.cancel, sf, topic, "DELETE", params={"reason": "Withdrawn."})
+    status, body = deliver(sf, topic, *RESERVED)
+    assert status == 200 and body == {"applied": []} and sf.orders["4711"]["references"]["reservationId"] == "RSV-4711"
+    assert sf.orders["4711"]["status"] == "cancelled"
+
+
+def test_released_with_stock_reserved_is_ready_for_shipment(sf, topic):
+    placed(sf, topic)
+    deliver(sf, topic, *ACCEPTED)
+    do(api.hold, sf, topic, body={"reason": "Customer asked to wait."})
+    deliver(sf, topic, *RESERVED)  # the WMS reserved meanwhile: recorded, the order stays on hold
+    assert sf.orders["4711"]["status"] == "onHold"
+    _, released = do(api.release, sf, topic, "DELETE")
+    assert released["status"] == "readyForShipment"
+    assert [e[0] for e in topic.events][-2:] == ["OrderReleased", "OrderReadyForShipment"]
+    assert topic.events[-1][2]["reservationId"] == "RSV-4711" and topic.events[-1][2]["deliveryAddress"]["city"] == "Brussels"
+
+
+def test_lines_are_amended_only_while_placed(sf, topic):
+    placed(sf, topic)
+    deliver(sf, topic, *ACCEPTED)
+    lines = [{"productId": "SKU-1042", "quantity": 10, "unitPrice": {"value": 7000.0, "currency": "EUR"}}]
+    response, problem = do(api.amend, sf, topic, body={"orderLines": lines})
+    assert response.status_code == 409 and "placed" in problem["detail"]
 
 
 def test_part_payment_is_not_paid(sf, topic):
@@ -327,6 +397,7 @@ def test_order_events_match_asyncapi(sf, topic):
     placed(sf, topic)
     for fact in (ACCEPTED, INVOICED, RESERVED, DISPATCHED, DELIVERED, PAID):
         deliver(sf, topic, *fact)
+    do(api.cancel, sf, topic, "DELETE", params={"reason": "Withdrawn."}, order_id=placed(sf, topic)[1]["orderId"])
     for fact, _, data, _ in topic.events:
         schema = spec["components"]["schemas"][by_type[event_type(fact)] + "Data"]
         errors = list(Draft7Validator({**schema, "components": spec["components"]}).iter_errors(data))

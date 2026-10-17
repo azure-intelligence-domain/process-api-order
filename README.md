@@ -7,7 +7,7 @@ the **order domain team**. Decision:
 | File | What |
 |---|---|
 | [`openapi.yaml`](openapi.yaml) | Commands and queries: `[Order] Order Process API` |
-| [`asyncapi.yaml`](asyncapi.yaml) | The 15 business events of the order domain, on `evgt-intplat-order` |
+| [`asyncapi.yaml`](asyncapi.yaml) | The 15 business events of the order domain, on `evgt-intplat-order`, and the 11 facts of other domains it reacts to |
 | [`orders.py`](orders.py) | **The brain**: which command is allowed in which status, and which fact it becomes. No I/O |
 | [`function_app.py`](function_app.py) | The routes: read the order, decide, save it in Salesforce, publish the fact |
 | [`platform_clients.py`](platform_clients.py) | Salesforce System API (through the gateway) and the order topic, with the runtime identity |
@@ -177,10 +177,28 @@ policy is a pure function in [`orders.py`](orders.py), like the commands.
 | SalesOrderRefused (finance) | **OrderRejected** | placed → rejected |
 | InvoiceIssued (finance) | **OrderInvoiced** | payment: unpaid → invoiced |
 | PaymentReceived, invoice paid in full (finance) | **OrderPaid** | payment: → paid |
-| StockReserved (supply) | **OrderReadyForShipment**, carrying lines and address for the 3PL | confirmed → readyForShipment |
+| StockReserved (supply) | **OrderReadyForShipment**, carrying lines and address for the 3PL | confirmed → readyForShipment; on hold: recorded, ready once released |
+| ShipmentBooked (logistics) | recorded: shipment and tracking number | stays readyForShipment until the pick-up |
 | ShipmentDispatched (logistics) | **OrderShipped** | readyForShipment → shipped |
 | ShipmentDelivered (logistics) | **OrderDelivered** | shipped → delivered |
 | the second of OrderDelivered and OrderPaid | **OrderCompleted** | delivered → completed |
+| OrderReleased, with stock reserved meanwhile | **OrderReadyForShipment** | confirmed → readyForShipment |
+| SalesOrderCancelled · StockReleased · ShipmentCancelled | recorded: the credit note, on the timeline | stays cancelled |
+
+Since 1.2.0 every fact about an order lands on its **timeline** (the other domain's fact, then the
+order fact it led to), and the order keeps its **references** in the other domains' systems: SAP
+sales order, invoice and credit note, WMS reservation, 3PL shipment. That is what a cancellation
+needs: **OrderCancelled** names what each domain has, and each one's intake undoes its own part
+([ADR 0018](https://github.com/azure-intelligence-domain/ai-intelligence-domain/blob/main/docs/adr/0018-cancellation-reaches-every-domain.md)).
+
+```mermaid
+flowchart LR
+    cancel["Cancel Order<br/>(until the 3PL picks it up)"] --> oc[["OrderCancelled<br/>erpOrderNumber · reservationId · shipmentId"]]
+    oc --> fi["finance-intake"] --> sap["SAP: Cancel Sales Order<br/>credit note"] --> soc[["SalesOrderCancelled"]]
+    oc --> si["supply-intake"] --> wms["WMS: Release Stock"] --> sr[["StockReleased"]]
+    oc --> li["logistics-intake"] --> tpl["3PL: Cancel Shipment Booking"] --> sc[["ShipmentCancelled"]]
+    soc & sr & sc --> timeline["the order's timeline"]
+```
 
 ```mermaid
 sequenceDiagram
@@ -201,8 +219,10 @@ sequenceDiagram
     Note over EG,F: a redelivered fact: 200 ignored (at-least-once). An error: Event Grid retries, then dead-letters.
 ```
 
-A fact that does not fit the order's status (stock reserved for a cancelled order) is logged and
-answered `200 ignored`: retrying would not make it fit. Only real failures (Salesforce down) make
+A fact that does not fit the order's status (a pick-up for a cancelled order) is logged and
+answered `200 ignored`: retrying would not make it fit. A sales order or reservation that arrives
+just after a cancellation is recorded on the order, so customer service sees it (the known race in
+ADR 0018). Only real failures (Salesforce down) make
 Event Grid retry and, in the end, dead-letter into the tap.
 
 ## Language: business facts, not CRUD
@@ -235,7 +255,8 @@ Facts from other domains become order facts through policies:
 ## Order status
 
 A state machine; payment status (`unpaid`, `invoiced`, `paid`) is separate, so an order can be
-shipped and still unpaid. An invalid transition is
+shipped and still unpaid. Order lines are amended only while `placed`: once SAP and the warehouse
+have the order, the customer cancels and orders again (since 1.2.0). An invalid transition is
 [`409 Order State Conflict`](docs/problems/order-state-conflict.md).
 
 ```mermaid
@@ -252,6 +273,8 @@ stateDiagram-v2
     placed --> cancelled: OrderCancelled
     confirmed --> cancelled: OrderCancelled
     onHold --> cancelled: OrderCancelled
+    onHold --> readyForShipment: OrderReleased + OrderReadyForShipment (stock reserved meanwhile)
+    readyForShipment --> cancelled: OrderCancelled (until the pick-up)
     rejected --> [*]
     cancelled --> [*]
     completed --> [*]

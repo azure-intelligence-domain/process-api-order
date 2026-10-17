@@ -12,9 +12,9 @@ from functools import cache
 from azure.identity import DefaultAzureCredential
 from integration_envelope import BusinessKeys, new_event
 
-VERSION = "1.0.0"
+VERSION = "1.2.0"
 NEW_ORDER_FIELDS = ("customerId", "channel", "status", "paymentStatus", "orderLines", "deliveryAddress",
-                    "requestedDeliveryDate", "holdReason", "cancellationReason", "idempotencyKey")
+                    "requestedDeliveryDate", "holdReason", "cancellationReason", "idempotencyKey", "references", "timeline")
 
 
 class OrderChanged(Exception):

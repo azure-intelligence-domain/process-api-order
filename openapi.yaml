@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: '[Order] Order Process API'
-  version: 1.0.0
+  version: 1.2.0
   description: 'The order lifecycle of the order domain: place, retrieve, amend, reschedule, hold, release and cancel
     orders. Every command that changes an order publishes a business event (OrderPlaced, OrderAmended, OrderCancelled,
     ...) to evgt-intplat-order; see asyncapi.yaml. Cancelling is a soft delete: the order keeps existing with status
@@ -20,11 +20,13 @@ externalDocs:
   url: https://azure-intelligence-domain.github.io/eventcatalog/docs/domains/order/1.0.0
 servers:
 - url: https://apim-intplat-demo.azure-api.net/order
-  description: Gateway for people and websites. No version in the URI.
+  description: 'Main gateway. No version in the URI. People and websites use the Experience APIs; building blocks
+    on the platform''s allow-list call this API with a platform token (since 1.2.0).'
 - url: https://apim-intplat-agents.azure-api.net/order
   description: 'Gateway for AI agents: Entra ID token per agent, every call audited.'
 security:
 - subscriptionKey: []
+- platformToken: []
 - subscriptionKey: []
   agentToken: []
 tags:
@@ -208,7 +210,9 @@ paths:
       operationId: cancelOrder
       summary: Cancel Order
       description: 'Cancels the order: a soft delete, the order keeps existing with status cancelled. Publishes
-        OrderCancelled. Allowed while the order is placed, confirmed or on hold.'
+        OrderCancelled, naming what the other domains have for it (sales order, reservation, shipment) so they undo
+        their part. Allowed while the order is placed, confirmed, on hold or ready for shipment (since 1.2.0: until
+        the 3PL picks it up).'
       parameters:
       - $ref: '#/components/parameters/orderId'
       - $ref: '#/components/parameters/cancellationReason'
@@ -260,8 +264,8 @@ paths:
       - Orders
       operationId: amendOrderLines
       summary: Amend Order Lines
-      description: Replaces the order lines, for example a changed quantity. Publishes OrderAmended. Allowed while
-        placed or confirmed.
+      description: 'Replaces the order lines, for example a changed quantity. Publishes OrderAmended. Allowed while
+        placed (since 1.2.0: once SAP and the warehouse have the order, cancel it and order again).'
       parameters: *id008
       responses:
         '200':
@@ -440,6 +444,12 @@ components:
       bearerFormat: JWT
       description: 'Agent gateway only: an Entra ID token for the intplat-agent-gateway application with the Agent.Act
         role.'
+    platformToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Main gateway, since 1.2.0: an Entra ID token for the intplat-platform-apis application, of a runtime
+        identity on the platform''s allow-list (internal-callers), e.g. an Experience API.'
   parameters:
     orderId:
       name: orderId
@@ -738,6 +748,55 @@ components:
           type: string
           format: date-time
           description: When the order last changed. ISO 8601, UTC.
+        references:
+          type: object
+          description: Where the order lives in the other domains' systems, recorded from their facts (since 1.2.0).
+          properties:
+            erpOrderNumber:
+              type: string
+              description: SAP sales order (SalesOrderAccepted).
+            invoiceNumber:
+              type: string
+              description: SAP invoice (InvoiceIssued).
+            creditNoteNumber:
+              type: string
+              description: SAP credit note that reversed the invoice (SalesOrderCancelled).
+            reservationId:
+              type: string
+              description: WMS stock reservation (StockReserved).
+            warehouseId:
+              type: string
+              description: Where the stock is reserved.
+            shipmentId:
+              type: string
+              description: 3PL consignment (ShipmentBooked).
+            trackingNumber:
+              type: string
+              description: The 3PL's tracking number.
+            partnerId:
+              type: string
+              description: The 3PL partner.
+        timeline:
+          type: array
+          description: Every business fact about the order, oldest first, from every domain (since 1.2.0).
+          items:
+            type: object
+            description: One fact.
+            required:
+            - fact
+            - domain
+            - occurredAt
+            properties:
+              fact:
+                type: string
+                description: The business fact, e.g. OrderPlaced or SalesOrderAccepted.
+              domain:
+                type: string
+                description: The domain that published it, e.g. order or finance.
+              occurredAt:
+                type: string
+                format: date-time
+                description: When the order domain recorded it. ISO 8601, UTC.
     orderList:
       type: object
       description: A page of orders (adidas pagination).

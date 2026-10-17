@@ -2,7 +2,7 @@ asyncapi: 2.6.0
 id: urn:azure-intelligence-domain:order:process-api-order
 info:
   title: '[Order] Order Events'
-  version: 1.1.0
+  version: 1.2.0
   description: 'The business events of the order domain, published by the Order Process API to evgt-intplat-order,
     and the facts of other domains it reacts to. Names are business facts in the past tense (Event Storming), never
     CRUD: an order is placed, confirmed, amended, put on hold, cancelled, paid or shipped; it is never updated or
@@ -646,6 +646,119 @@ channels:
         - process-api-order
       message:
         $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-3pl/v1.0.0/asyncapi.yaml#/components/messages/shipmentDelivered
+  finance.system-api-sap.event.sales-order-cancelled:
+    description: 'SalesOrderCancelled, published by system-api-sap. The order domain''s policy: recorded on the
+      order (credit note); no new order fact (since 1.2.0).'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-finance
+          eventType: com.acme.finance.salesOrderCancelled
+    subscribe:
+      operationId: receiveSalesOrderCancelled
+      summary: Receive SalesOrderCancelled.
+      description: 'The Order Process API receives SalesOrderCancelled through the platform''s event intake (subscription
+        process-api-order) and applies its policy: recorded on the order (credit note); no new order fact.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-sap/v1.2.0/asyncapi.yaml#/components/messages/salesOrderCancelled
+  supply.system-api-wms.event.stock-released:
+    description: 'StockReleased, published by system-api-wms. The order domain''s policy: recorded on the order''s
+      timeline; no new order fact (since 1.2.0).'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-supply
+          eventType: com.acme.supply.stockReleased
+    subscribe:
+      operationId: receiveStockReleased
+      summary: Receive StockReleased.
+      description: 'The Order Process API receives StockReleased through the platform''s event intake (subscription
+        process-api-order) and applies its policy: recorded on the order''s timeline; no new order fact.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-wms/v1.1.0/asyncapi.yaml#/components/messages/stockReleased
+  logistics.system-api-3pl.event.shipment-booked:
+    description: 'ShipmentBooked, published by system-api-3pl. The order domain''s policy: recorded on the order
+      (shipment, tracking number); the order stays ready for shipment until the pick-up (since 1.2.0).'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-logistics
+          eventType: com.acme.logistics.shipmentBooked
+    subscribe:
+      operationId: receiveShipmentBooked
+      summary: Receive ShipmentBooked.
+      description: 'The Order Process API receives ShipmentBooked through the platform''s event intake (subscription
+        process-api-order) and applies its policy: recorded on the order (shipment, tracking number); the order
+        stays ready for shipment until the pick-up.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-3pl/v1.1.0/asyncapi.yaml#/components/messages/shipmentBooked
+  logistics.system-api-3pl.event.shipment-cancelled:
+    description: 'ShipmentCancelled, published by system-api-3pl. The order domain''s policy: recorded on the order''s
+      timeline; no new order fact (since 1.2.0).'
+    servers:
+    - demo-event-grid
+    x-configurations:
+      demo:
+        eventGrid:
+          topic: evgt-intplat-logistics
+          eventType: com.acme.logistics.shipmentCancelled
+    subscribe:
+      operationId: receiveShipmentCancelled
+      summary: Receive ShipmentCancelled.
+      description: 'The Order Process API receives ShipmentCancelled through the platform''s event intake (subscription
+        process-api-order) and applies its policy: recorded on the order''s timeline; no new order fact.'
+      tags:
+      - name: order
+        description: Order domain.
+      security:
+      - platformIntake: []
+      externalDocs:
+        description: The order domain's policies
+        url: https://github.com/azure-intelligence-domain/process-api-order#policies
+      x-consumers:
+        demo:
+        - process-api-order
+      message:
+        $ref: https://raw.githubusercontent.com/azure-intelligence-domain/system-api-3pl/v1.1.0/asyncapi.yaml#/components/messages/shipmentCancelled
 components:
   securitySchemes:
     entraIdEventGrid:
@@ -1633,6 +1746,15 @@ components:
           type: string
           format: date-time
           description: When the order was cancelled. ISO 8601, UTC.
+        erpOrderNumber:
+          type: string
+          description: The SAP sales order to cancel, if SAP has one (since 1.2.0).
+        reservationId:
+          type: string
+          description: The WMS reservation to release, if the stock is reserved (since 1.2.0).
+        shipmentId:
+          type: string
+          description: The 3PL booking to cancel, if the shipment is booked (since 1.2.0).
     orderInvoicedData:
       type: object
       description: What OrderInvoiced says.

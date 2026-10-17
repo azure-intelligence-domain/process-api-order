@@ -167,11 +167,14 @@ def command(req: func.HttpRequest, sf: SalesforceApi, topic: OrderTopic, intent)
             decision = decide(order)
         except orders.StateConflict as conflict:
             return problem(409, "Order State Conflict", str(conflict), "order-state-conflict", req.url)
+        changed = orders.apply(order, decision)
+        then = orders.follow_up(changed)  # e.g. released, with stock reserved: ready for shipment
         try:
-            saved = sf.replace(order_id, orders.apply(order, decision), etag)
+            saved = sf.replace(order_id, orders.apply(changed, then) if then else changed, etag)
         except OrderChanged:
             continue  # someone else changed it meanwhile: decide again on the fresh order
-        topic.publish(decision.event, saved, orders.event_data(decision, saved), correlation_id, traceparent)
+        for fact in [decision] + ([then] if then else []):
+            topic.publish(fact.event, saved, orders.event_data(fact, saved), correlation_id, traceparent)
         return hal(200, resource(saved))
     raise RuntimeError(f"Order {order_id} kept changing; gave up after {RETRIES} attempts.")
 
@@ -180,8 +183,9 @@ def command(req: func.HttpRequest, sf: SalesforceApi, topic: OrderTopic, intent)
 
 
 def receive_event(req: func.HttpRequest, sf: SalesforceApi, topic: OrderTopic) -> func.HttpResponse:
-    """One CloudEvent from another domain → at most two order facts (e.g. OrderDelivered, OrderCompleted).
-    200 when handled or deliberately ignored; an error makes Event Grid retry, then dead-letter."""
+    """One CloudEvent from another domain → on the order's timeline, and at most two order facts (e.g.
+    OrderDelivered, OrderCompleted). 200 when handled or deliberately ignored; an error makes Event
+    Grid retry, then dead-letter."""
     try:
         event = read(req.get_json())
     except (ValueError, EnvelopeError) as error:
@@ -201,16 +205,16 @@ def receive_event(req: func.HttpRequest, sf: SalesforceApi, topic: OrderTopic) -
             return ignored(event, str(conflict))
         if decision is None:
             return ignored(event, "the order already reflects it")
-        changed = orders.apply(order, decision)
-        done = orders.completion(changed)
+        changed = orders.apply(order, decision, *orders.fact_of(event["type"]))
+        then = orders.follow_up(changed)
         try:
-            saved = sf.replace(order_id, orders.apply(changed, done) if done else changed, etag)
+            saved = sf.replace(order_id, orders.apply(changed, then) if then else changed, etag)
         except OrderChanged:
             continue
-        facts = [decision] + ([done] if done else [])
+        facts = [d for d in [decision] + ([then] if then else []) if d.event]
         for fact in facts:
             topic.publish(fact.event, saved, orders.event_data(fact, saved), correlation_id, traceparent)
-        logging.info("%s for order %s: %s", event["type"], order_id, [f.event for f in facts])
+        logging.info("%s for order %s: %s", event["type"], order_id, [f.event for f in facts] or "recorded")
         return func.HttpResponse(json.dumps({"applied": [f.event for f in facts]}), status_code=200, mimetype="application/json")
     raise RuntimeError(f"Order {order_id} kept changing; gave up after {RETRIES} attempts.")
 
