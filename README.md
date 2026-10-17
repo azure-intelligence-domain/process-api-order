@@ -299,8 +299,25 @@ erDiagram
         date requestedDeliveryDate
         string holdReason
         string cancellationReason
+        OrderReferences references
+        list timeline
         datetime createdAt
         datetime updatedAt
+    }
+    OrderReferences {
+        string erpOrderNumber FK
+        string invoiceNumber FK
+        string creditNoteNumber FK
+        string reservationId FK
+        string warehouseId
+        string shipmentId FK
+        string trackingNumber
+        string partnerId
+    }
+    OrderMilestone {
+        string fact
+        string domain
+        datetime occurredAt
     }
     OrderLine {
         integer lineNumber
@@ -321,13 +338,35 @@ erDiagram
     Account {
         string see_sales_domain
     }
+    CreditNote {
+        string see_finance_domain
+    }
+    Invoice {
+        string see_finance_domain
+    }
     Product {
         string see_sales_domain
+    }
+    SalesOrder {
+        string see_finance_domain
+    }
+    Shipment {
+        string see_logistics_domain
+    }
+    StockReservation {
+        string see_supply_domain
     }
     Order }o--|| Account : "customerId"
     Order ||--|{ OrderLine : "orderLines"
     Order ||--|| Money : "totalAmount"
     Order ||--|| DeliveryAddress : "deliveryAddress"
+    Order }o--o| OrderReferences : "references"
+    Order ||--|{ OrderMilestone : "timeline"
+    OrderReferences }o--o| SalesOrder : "erpOrderNumber"
+    OrderReferences }o--o| Invoice : "invoiceNumber"
+    OrderReferences }o--o| CreditNote : "creditNoteNumber"
+    OrderReferences }o--o| StockReservation : "reservationId"
+    OrderReferences }o--o| Shipment : "shipmentId"
     OrderLine }o--|| Product : "productId"
     OrderLine ||--|| Money : "unitPrice"
 ```
